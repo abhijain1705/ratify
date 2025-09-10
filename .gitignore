@@ -1,0 +1,42 @@
+# Frontend (React)
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+frontend/.env
+frontend/.env.*
+frontend/yarn-error.log
+frontend/npm-debug.log*
+
+# Backend (FastAPI)
+backend/__pycache__/
+backend/*.py[cod]
+backend/*.pyo
+backend/*.pyd
+backend/*.egg-info/
+backend/*.egg/
+backend/build/
+backend/dist/
+backend/venv/
+backend/env/
+backend/ENV/
+backend/.venv/
+backend/.env
+backend/.env.*
+backend/*.db
+backend/*.sqlite3
+
+# IDE/OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs and coverage
+*.log
+coverage/
+*.cover
+*.coverage
+.coverage.*
+.cache
+.pytest_cache/
+junit*.xml
