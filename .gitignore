@@ -4,6 +4,7 @@ frontend/build/
 frontend/dist/
 frontend/.env
 frontend/.env.*
+frontend/.next/
 frontend/yarn-error.log
 frontend/npm-debug.log*
 
