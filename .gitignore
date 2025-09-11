@@ -12,6 +12,7 @@ frontend/npm-debug.log*
 backend/__pycache__/
 backend/*.py[cod]
 backend/*.pyo
+backend/ratify-e2f8a-firebase-adminsdk-fbsvc-b48c454983.json
 backend/*.pyd
 backend/*.egg-info/
 backend/*.egg/
