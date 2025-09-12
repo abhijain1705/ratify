@@ -22,11 +22,21 @@ from clouds.aws.aws import validate_aws_credentials, get_cpu_utilization, set_as
 
 import redis.asyncio as aioredis
 import json
+from fastapi.middleware.cors import CORSMiddleware
 
 limiter = Limiter(key_func=get_remote_address)
 load_dotenv()
 
 app = FastAPI()
+
+# Allow CORS for localhost:3000
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 FIREBASE_API_KEY = os.getenv("FIREBASE_API_KEY")
 
@@ -90,6 +100,25 @@ async def delete_connector_from_redis(user_id: str, provider: str):
     key = f"user:{user_id}:connectors"
     await redis.hdel(key, provider)
 
+
+@app.get("/api/connectors/status")
+async def connectors_status(user: User = Depends(verify_firebase_token)):
+    aws_connector = await get_connector_from_redis(user.uid, "aws")
+    azure_connector = await get_connector_from_redis(user.uid, "azure")
+    return {
+        "aws": aws_connector is not None,
+        "azure": azure_connector is not None
+    }
+
+@app.get("/api/connectors/aws/status")
+async def aws_connector_status(user: User = Depends(verify_firebase_token)):
+    aws_connector = await get_connector_from_redis(user.uid, "aws")
+    return {"aws": aws_connector is not None}
+
+@app.get("/api/connectors/azure/status")
+async def azure_connector_status(user: User = Depends(verify_firebase_token)):
+    azure_connector = await get_connector_from_redis(user.uid, "azure")
+    return {"azure": azure_connector is not None}
 
 # ---------- Helpers ----------
 async def get_user_azure_credential(user_id):

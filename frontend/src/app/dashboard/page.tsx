@@ -6,12 +6,12 @@ import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { auth } from "@/firebase";
 import AwsSetupWizard from "@/sections/awsSetupWizard";
 import AzureWizard from "@/sections/azureWizard";
+import axios from "axios";
 
 // Assets
 import AWSLogo from "@/assets/images.png";
 import AzureLogo from "@/assets/azure.png";
 
-// Simple Modal Component
 function Modal({
   isOpen,
   onClose,
@@ -39,12 +39,40 @@ function Modal({
 
 export default function Dashboard() {
   const [user, setUser] = useState<User | null>(null);
+  const [idToken, setIdToken] = useState<string | null>(null);
   const [openModal, setOpenModal] = useState<"aws" | "azure" | null>(null);
+  const [connectorsStatus, setConnectorsStatus] = useState<{ aws: boolean; azure: boolean }>({
+    aws: false,
+    azure: false,
+  });
 
+  // Track auth state
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => setUser(u));
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      setUser(u);
+      if (u) {
+        const token = await u.getIdToken();
+        setIdToken(token);
+      }
+    });
     return () => unsub();
   }, []);
+
+  // Fetch connector status from backend
+  useEffect(() => {
+    const fetchStatus = async () => {
+      if (!idToken) return;
+      try {
+        const res = await axios.get("http://127.0.0.1:8000/api/connectors/status", {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        setConnectorsStatus(res.data);
+      } catch (err) {
+        console.error("Failed to fetch connector status:", err);
+      }
+    };
+    fetchStatus();
+  }, [idToken]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -82,35 +110,39 @@ export default function Dashboard() {
       {/* Connectors Section */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* AWS Card */}
-        <div className="bg-white border rounded-2xl p-6 shadow flex flex-col items-center">
-          <Image src={AWSLogo} alt="AWS" width={80} height={40} />
-          <h3 className="text-lg font-medium text-gray-800 mt-4 mb-6">
-            AWS Connector
-          </h3>
-          <button
-            onClick={() => setOpenModal("aws")}
-            className="w-full py-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow transition"
-          >
-            Open AWS Setup
-          </button>
-        </div>
+        {!connectorsStatus.aws && (
+          <div className="bg-white border rounded-2xl p-6 shadow flex flex-col items-center">
+            <Image src={AWSLogo} alt="AWS" width={80} height={40} />
+            <h3 className="text-lg font-medium text-gray-800 mt-4 mb-6">
+              AWS Connector
+            </h3>
+            <button
+              onClick={() => setOpenModal("aws")}
+              className="w-full py-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow transition"
+            >
+              Open AWS Setup
+            </button>
+          </div>
+        )}
 
         {/* Azure Card */}
-        <div className="bg-white border rounded-2xl p-6 shadow flex flex-col items-center">
-          <Image src={AzureLogo} alt="Azure" width={90} height={40} />
-          <h3 className="text-lg font-medium text-gray-800 mt-4 mb-6">
-            Azure Connector
-          </h3>
-          <button
-            onClick={() => setOpenModal("azure")}
-            className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium shadow transition"
-          >
-            Open Azure Setup
-          </button>
-        </div>
+        {!connectorsStatus.azure && (
+          <div className="bg-white border rounded-2xl p-6 shadow flex flex-col items-center">
+            <Image src={AzureLogo} alt="Azure" width={90} height={40} />
+            <h3 className="text-lg font-medium text-gray-800 mt-4 mb-6">
+              Azure Connector
+            </h3>
+            <button
+              onClick={() => setOpenModal("azure")}
+              className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium shadow transition"
+            >
+              Open Azure Setup
+            </button>
+          </div>
+        )}
       </section>
 
-      {/* Popup Modals */}
+      {/* Modals */}
       <Modal isOpen={openModal === "aws"} onClose={() => setOpenModal(null)}>
         <AwsSetupWizard isOpen={openModal === "aws"} onClose={() => setOpenModal(null)} />
       </Modal>
