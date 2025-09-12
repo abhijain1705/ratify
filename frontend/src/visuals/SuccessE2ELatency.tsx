@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import AzoreLogo from "@/assets/azure.png";
+import Image from "next/image";
 import {
   LineChart,
   Line,
@@ -174,6 +176,7 @@ export const SuccessE2ELatencyComponent: React.FC<
         <div className="flex items-center space-x-2">
           <span className="text-2xl">🎯</span>
           <div>
+             <Image src={AzoreLogo} alt="Echo logo" className="logo-ticker-image" />
             <h3 className="text-lg font-semibold text-gray-900">
               End-to-End Latency
             </h3>

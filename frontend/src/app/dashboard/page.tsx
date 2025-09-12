@@ -93,6 +93,19 @@ export default function Dashboard() {
 
       <p className="text-gray-600">Welcome back, {user.displayName} 👋</p>
 
+      {/* Info card if no cloud connected */}
+      {!awsConnected && !azureConnected && (
+        <div className="p-6 bg-yellow-50 border border-yellow-200 rounded-xl shadow-sm">
+          <h3 className="text-lg font-semibold text-yellow-800 mb-2">
+            ⚠️ No Cloud Connected
+          </h3>
+          <p className="text-yellow-700">
+            To start using the dashboard, please connect at least one cloud
+            platform (AWS or Azure). Click a connector below to get started.
+          </p>
+        </div>
+      )}
+
       {/* Connectors Section */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* AWS Card */}

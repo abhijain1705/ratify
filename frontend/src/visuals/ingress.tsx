@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import AzoreLogo from "@/assets/azure.png";
+import Image from "next/image";
 import {
   AreaChart,
   Area,
@@ -139,6 +141,7 @@ export const IngressComponent: React.FC<IngressProps> = ({
         <div className="flex items-center space-x-2">
           <span className="text-2xl">⬇️</span>
           <div>
+             <Image src={AzoreLogo} alt="Echo logo" className="logo-ticker-image" />
             <h3 className="text-lg font-semibold text-gray-900">Ingress</h3>
             <p className="text-sm text-gray-500">Ingress data (bytes transferred into storage)</p>
           </div>
