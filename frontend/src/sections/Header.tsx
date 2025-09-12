@@ -25,7 +25,7 @@ export const Header = () => {
           Securely manage AWS, GCP & Azure from one dashboard
         </p>
         <div className="inline-flex gap-1 items-center">
-          <p>Try it now →</p>
+          <p>Try it now </p>
           <ArrowRight className="h-4 w-4 inline-flex justify-center items-center" />
         </div>
       </div>
