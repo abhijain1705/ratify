@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from "react";
-
+import React, { useState, useEffect, useCallback } from "react";
 import AzoreLogo from "@/assets/azure.png";
 import Image from "next/image";
+import { useConnector } from "@/context/ConnectorContext";
 
 // Types
 interface MetricDataPoint {
   time_stamp: string;
-  average: number;
+  average?: number; // allow optional
 }
 
 interface AvailabilityProps {
@@ -41,8 +41,10 @@ const getGaugeColor = (value: number, threshold: number = 99.9): string => {
   return "#EF4444"; // red-500
 };
 
+
 // API fetch
 const fetchAvailabilityMetrics = async (
+  token: string | null,
   resourceGroup: string,
   storageAccount: string
 ) => {
@@ -51,7 +53,7 @@ const fetchAvailabilityMetrics = async (
       "http://127.0.0.1:8000/api/azure/storage-metrics",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           resource_group: resourceGroup,
           storage_account: storageAccount,
@@ -126,15 +128,18 @@ export const AvailabilityComponent: React.FC<AvailabilityProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const { user } = useConnector()
 
   const threshold = 99.9; // SLA
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
+      const token = user ? await user.getIdToken() : '';
       const response = await fetchAvailabilityMetrics(
+        token,
         resourceGroup,
         storageAccount
       );
@@ -142,48 +147,89 @@ export const AvailabilityComponent: React.FC<AvailabilityProps> = ({
       if (response.metrics && response.metrics.length > 0) {
         const timeseries = response.metrics[0].timeseries;
         if (timeseries && timeseries.length > 0) {
-          setData(timeseries[0].data || []);
+          // Only include points with an 'average' value!
+          const filteredData = (timeseries[0].data || []).filter((d: MetricDataPoint) =>
+            typeof d.average === "number"
+          );
+          setData(filteredData);
           setLastUpdated(new Date());
+        } else {
+          setData([]);
         }
+      } else {
+        setData([]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch data");
+      setData([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [resourceGroup, storageAccount, user]);
 
   useEffect(() => {
     fetchData();
-  }, [resourceGroup, storageAccount]);
+  }, [fetchData]);
 
   useEffect(() => {
     if (autoRefresh) {
       const interval = setInterval(fetchData, refreshInterval);
       return () => clearInterval(interval);
     }
-  }, [autoRefresh, refreshInterval]);
+  }, [autoRefresh, fetchData, refreshInterval]);
 
-  const currentValue = data.length > 0 ? data[data.length - 1].average : 0;
-  const previousValue = data.length > 1 ? data[data.length - 2].average : 0;
+  // Only use data points with an 'average'
+  const validData = data;
+
+  const currentValue = validData.length > 0 ? validData[validData.length - 1].average! : 0;
+  const previousValue = validData.length > 1 ? validData[validData.length - 2].average! : 0;
   const change = currentValue - previousValue;
   const changePercentage =
     previousValue !== 0 ? (change / previousValue) * 100 : 0;
 
   const stats =
-    data.length > 0
+    validData.length > 0
       ? {
-          min: Math.min(...data.map((d) => d.average)),
-          max: Math.max(...data.map((d) => d.average)),
-          avg: data.reduce((sum, d) => sum + d.average, 0) / data.length,
-          uptime:
-            (data.filter((d) => d.average >= threshold).length / data.length) *
-            100,
-        }
+        min: Math.min(...validData.map((d) => d.average!)),
+        max: Math.max(...validData.map((d) => d.average!)),
+        avg: validData.reduce((sum, d) => sum + d.average!, 0) / validData.length,
+        uptime:
+          (validData.filter((d) => d.average! >= threshold).length / validData.length) *
+          100,
+      }
       : { min: 0, max: 0, avg: 0, uptime: 0 };
 
   const statusColor = getStatusColor(currentValue, threshold);
   const slaStatus = currentValue >= threshold;
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl shadow-md border border-blue-200 p-6 flex items-center justify-center h-full w-full">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500">.........</div>
+      </div>
+    )
+  }
+
+  // Conditional rendering for error
+  if (error) {
+    return (
+      <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 flex flex-col items-center justify-center h-96">
+        <div className="flex items-center mb-4 gap-3">
+          <Image src={AzoreLogo} alt="Echo logo" className="logo-ticker-image" />
+          <h2 className="text-lg font-semibold mb-2">Availability</h2>
+        </div>
+        <div className="text-4xl mb-2 text-red-500">⚠️</div>
+        <div className="text-lg font-semibold text-red-600 mb-2">Error</div>
+        <div className="text-gray-700 text-center">{error}</div>
+        <button
+          onClick={fetchData}
+          className="mt-6 px-4 py-2 bg-cyan-500 text-white rounded hover:bg-cyan-600 transition"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-shadow duration-300">
@@ -192,7 +238,6 @@ export const AvailabilityComponent: React.FC<AvailabilityProps> = ({
         <div className="flex items-center space-x-2">
           <span className="text-2xl">✅</span>
           <div>
-            
             <Image src={AzoreLogo} alt="Echo logo" className="logo-ticker-image" />
             <h3 className="text-lg font-semibold text-gray-900">
               Availability
@@ -227,15 +272,14 @@ export const AvailabilityComponent: React.FC<AvailabilityProps> = ({
           <span className={`text-2xl font-bold ${statusColor}`}>
             {formatPercentage(currentValue)}
           </span>
-          {data.length > 1 && (
+          {validData.length > 1 && (
             <div
-              className={`flex items-center space-x-1 text-sm ${
-                change > 0
-                  ? "text-green-500"
-                  : change < 0
+              className={`flex items-center space-x-1 text-sm ${change > 0
+                ? "text-green-500"
+                : change < 0
                   ? "text-red-500"
                   : "text-gray-500"
-              }`}
+                }`}
             >
               <span>{change > 0 ? "↗️" : change < 0 ? "↘️" : "➡️"}</span>
               <span>{Math.abs(changePercentage).toFixed(3)}%</span>
@@ -246,9 +290,8 @@ export const AvailabilityComponent: React.FC<AvailabilityProps> = ({
           SLA Target: {formatPercentage(threshold)}
         </div>
         <div
-          className={`text-sm mt-1 flex items-center ${
-            slaStatus ? "text-green-600" : "text-red-600"
-          }`}
+          className={`text-sm mt-1 flex items-center ${slaStatus ? "text-green-600" : "text-red-600"
+            }`}
         >
           <span className="mr-1">{slaStatus ? "✅" : "⚠️"}</span>
           {slaStatus ? "Meeting SLA" : "Below SLA threshold"}
@@ -261,76 +304,74 @@ export const AvailabilityComponent: React.FC<AvailabilityProps> = ({
           <div className="h-64 flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-500"></div>
           </div>
-        ) : error ? (
-          <div className="h-64 flex items-center justify-center text-red-500">
-            <div className="text-center">
-              <div className="text-2xl mb-2">⚠️</div>
-              <div>{error}</div>
-            </div>
-          </div>
         ) : (
           <GaugeChart value={currentValue} threshold={threshold} />
         )}
       </div>
 
       {/* Recent History */}
-      {data.length > 0 && (
+      {validData.length > 0 && (
         <div className="mt-4">
           <h4 className="text-sm font-medium text-gray-700 mb-2">
             Recent History
           </h4>
           <div className="grid grid-cols-12 gap-1 h-8">
-            {data.slice(-12).map((point, index) => {
-              const isGood = point.average >= threshold;
+            {validData.slice(-12).map((point, index) => {
+              const isGood = point.average! >= threshold;
               const isWarning =
-                point.average >= threshold - 0.5 && point.average < threshold;
+                point.average! >= threshold - 0.5 && point.average! < threshold;
               return (
                 <div
                   key={index}
-                  className={`rounded-sm ${
-                    isGood
-                      ? "bg-cyan-600"
-                      : isWarning
+                  className={`rounded-sm ${isGood
+                    ? "bg-cyan-600"
+                    : isWarning
                       ? "bg-yellow-500"
                       : "bg-red-500"
-                  }`}
+                    }`}
                   title={`${formatTimestamp(point.time_stamp)}: ${formatPercentage(
-                    point.average
+                    point.average!
                   )}`}
                 />
               );
             })}
           </div>
           <div className="flex justify-between text-xs text-gray-500 mt-1">
-            <span>{data.length >= 12 ? "12 periods ago" : "Start"}</span>
+            <span>{validData.length >= 12 ? "12 periods ago" : "Start"}</span>
             <span>Now</span>
           </div>
         </div>
       )}
 
       {/* Footer Stats */}
-      {data.length > 0 && (
+      {validData.length > 0 && (
         <div className="mt-4 pt-4 border-t border-gray-100">
-          <div className="grid grid-cols-4 gap-3 text-sm">
-            <div className="text-center">
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            {/* Min */}
+            <div className="text-center p-2 bg-white rounded shadow">
               <div className="text-gray-500">Min</div>
               <div className="font-medium">{formatPercentage(stats.min)}</div>
             </div>
-            <div className="text-center">
+
+            {/* Avg */}
+            <div className="text-center p-2 bg-white rounded shadow">
               <div className="text-gray-500">Avg</div>
               <div className="font-medium">{formatPercentage(stats.avg)}</div>
             </div>
-            <div className="text-center">
+
+            {/* Max */}
+            <div className="text-center p-2 bg-white rounded shadow">
               <div className="text-gray-500">Max</div>
               <div className="font-medium">{formatPercentage(stats.max)}</div>
             </div>
-            <div className="text-center">
+
+            {/* Uptime */}
+            <div className="text-center p-2 bg-white rounded shadow">
               <div className="text-gray-500">Uptime %</div>
-              <div className="font-medium">
-                {formatPercentage(stats.uptime)}
-              </div>
+              <div className="font-medium">{formatPercentage(stats.uptime)}</div>
             </div>
           </div>
+
         </div>
       )}
     </div>

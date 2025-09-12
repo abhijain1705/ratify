@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import AzoreLogo from "@/assets/azure.png";
 import Image from "next/image";
 import {
@@ -10,11 +10,12 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
+import { useConnector } from '@/context/ConnectorContext';
 
 // Types
 interface MetricDataPoint {
   time_stamp: string;
-  average: number;
+  average?: number; // average can be missing
 }
 
 interface IngressProps {
@@ -41,11 +42,11 @@ const formatTimestamp = (timestamp: string): string => {
   });
 };
 
-const fetchIngressMetrics = async (resourceGroup: string, storageAccount: string) => {
+const fetchIngressMetrics = async (token: string, resourceGroup: string, storageAccount: string) => {
   try {
     const response = await fetch('http://127.0.0.1:8000/api/azure/storage-metrics', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({
         resource_group: resourceGroup,
         storage_account: storageAccount,
@@ -70,46 +71,60 @@ export const IngressComponent: React.FC<IngressProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const { user } = useConnector();
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetchIngressMetrics(resourceGroup, storageAccount);
+      const token = user ? await user.getIdToken() : '';
+      const response = await fetchIngressMetrics(token, resourceGroup, storageAccount);
       if (response.metrics && response.metrics.length > 0) {
         const timeseries = response.metrics[0].timeseries;
         if (timeseries && timeseries.length > 0) {
-          setData(timeseries[0].data || []);
+          // Only include points with an 'average' value
+          const filteredData = (timeseries[0].data || []).filter((d: MetricDataPoint) =>
+            typeof d.average === "number"
+          );
+          setData(filteredData);
           setLastUpdated(new Date());
+        } else {
+          setData([]);
         }
+      } else {
+        setData([]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch data');
+      setData([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [resourceGroup, storageAccount, user]);
 
   useEffect(() => {
     fetchData();
-  }, [resourceGroup, storageAccount]);
+  }, [fetchData, resourceGroup, storageAccount]);
 
   useEffect(() => {
     if (autoRefresh) {
       const interval = setInterval(fetchData, refreshInterval);
       return () => clearInterval(interval);
     }
-  }, [autoRefresh, refreshInterval]);
+  }, [autoRefresh, fetchData, refreshInterval]);
 
-  const currentValue = data.length > 0 ? data[data.length - 1].average : 0;
-  const previousValue = data.length > 1 ? data[data.length - 2].average : 0;
+  // Only use data points with an 'average'
+  const validData = data;
+
+  const currentValue = validData.length > 0 ? validData[validData.length - 1].average! : 0;
+  const previousValue = validData.length > 1 ? validData[validData.length - 2].average! : 0;
   const change = currentValue - previousValue;
   const changePercentage = previousValue !== 0 ? (change / previousValue) * 100 : 0;
 
-  const chartData = data.map(point => ({
+  const chartData = validData.map(point => ({
     ...point,
     formattedTime: formatTimestamp(point.time_stamp),
-    value: point.average
+    value: point.average!
   }));
 
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -127,12 +142,43 @@ export const IngressComponent: React.FC<IngressProps> = ({
     return null;
   };
 
-  const stats = data.length > 0 ? {
-    min: Math.min(...data.map(d => d.average)),
-    max: Math.max(...data.map(d => d.average)),
-    avg: data.reduce((sum, d) => sum + d.average, 0) / data.length,
-    total: data.reduce((sum, d) => sum + d.average, 0)
+  const stats = validData.length > 0 ? {
+    min: Math.min(...validData.map(d => d.average!)),
+    max: Math.max(...validData.map(d => d.average!)),
+    avg: validData.reduce((sum, d) => sum + d.average!, 0) / validData.length,
+    total: validData.reduce((sum, d) => sum + d.average!, 0)
   } : { min: 0, max: 0, avg: 0, total: 0 };
+
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl shadow-md border border-blue-200 p-6 flex items-center justify-center h-full w-full">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500">.........</div>
+      </div>
+    )
+  }
+
+  // Error conditional rendering
+  if (error) {
+    return (
+      <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 flex flex-col items-center justify-center h-96">
+        <div className="flex items-center mb-4 gap-3">
+          <Image src={AzoreLogo} alt="Echo logo" className="logo-ticker-image" />
+          <h2 className="text-lg font-semibold mb-2">Ingress</h2>
+        </div>
+        <div className="text-4xl mb-2 text-red-500">⚠️</div>
+        <div className="text-lg font-semibold text-red-600 mb-2">Error</div>
+        <div className="text-gray-700 text-center">{error}</div>
+        <button
+          onClick={fetchData}
+          className="mt-6 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
 
   return (
     <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 hover:shadow-xl transition duration-300">
@@ -141,7 +187,7 @@ export const IngressComponent: React.FC<IngressProps> = ({
         <div className="flex items-center space-x-2">
           <span className="text-2xl">⬇️</span>
           <div>
-             <Image src={AzoreLogo} alt="Echo logo" className="logo-ticker-image" />
+            <Image src={AzoreLogo} alt="Echo logo" className="logo-ticker-image" />
             <h3 className="text-lg font-semibold text-gray-900">Ingress</h3>
             <p className="text-sm text-gray-500">Ingress data (bytes transferred into storage)</p>
           </div>
@@ -171,10 +217,9 @@ export const IngressComponent: React.FC<IngressProps> = ({
           <span className="text-2xl font-bold text-blue-600">
             {formatBytes(currentValue)}
           </span>
-          {data.length > 1 && (
-            <div className={`flex items-center space-x-1 text-sm ${
-              change > 0 ? 'text-blue-500' : change < 0 ? 'text-red-500' : 'text-gray-500'
-            }`}>
+          {validData.length > 1 && (
+            <div className={`flex items-center space-x-1 text-sm ${change > 0 ? 'text-blue-500' : change < 0 ? 'text-red-500' : 'text-gray-500'
+              }`}>
               <span>{change > 0 ? '↗️' : change < 0 ? '↘️' : '➡️'}</span>
               <span>{Math.abs(changePercentage).toFixed(1)}%</span>
             </div>
@@ -191,28 +236,21 @@ export const IngressComponent: React.FC<IngressProps> = ({
           <div className="h-64 flex items-center justify-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
           </div>
-        ) : error ? (
-          <div className="h-64 flex items-center justify-center text-red-500">
-            <div className="text-center">
-              <div className="text-2xl mb-2">⚠️</div>
-              <div>{error}</div>
-            </div>
-          </div>
         ) : (
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
               <defs>
                 <linearGradient id="gradientIngress" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#2563eb" stopOpacity={0.7}/>
-                  <stop offset="95%" stopColor="#2563eb" stopOpacity={0.05}/>
+                  <stop offset="5%" stopColor="#2563eb" stopOpacity={0.7} />
+                  <stop offset="95%" stopColor="#2563eb" stopOpacity={0.05} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis 
-                dataKey="formattedTime" 
+              <XAxis
+                dataKey="formattedTime"
                 tick={{ fontSize: 12, fill: '#6b7280' }}
               />
-              <YAxis 
+              <YAxis
                 tick={{ fontSize: 12, fill: '#6b7280' }}
                 tickFormatter={(value) => formatBytes(value)}
               />
@@ -230,7 +268,7 @@ export const IngressComponent: React.FC<IngressProps> = ({
       </div>
 
       {/* Footer Stats */}
-      {data.length > 0 && (
+      {validData.length > 0 && (
         <div className="mt-4 pt-4 border-t border-gray-100">
           <div className="grid grid-cols-3 gap-4 text-sm">
             <div className="text-center">
