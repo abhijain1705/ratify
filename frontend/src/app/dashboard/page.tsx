@@ -16,6 +16,9 @@ import {
 
 import AWSLogo from "@/assets/images.png";
 import AzoreLogo from "@/assets/azure.png";
+import AwsSetupWizard from "@/sections/awsSetupWizard";
+import AzureWizard from "@/sections/azureWizard";
+
 
 const sampleBillingData = [
   { date: "2025-09-01", aws: 12, azure: 10 },
@@ -63,27 +66,9 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen p-6 bg-gradient-to-br from-blue-50 to-indigo-50">
-      {/* Header */}
-      <header className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-indigo-700 flex items-center gap-3">
-            <span className="text-2xl">🌐</span>
-            <span>Unified Cloud Dashboard</span>
-          </h1>
-          <p className="text-sm text-gray-600 mt-1">Welcome, {user?.email}</p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleLogout}
-            className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white shadow-sm transition"
-          >
-            Logout
-          </button>
-        </div>
-      </header>
-
+    <div className="p-6 space-y-6 min-h-screen">
+      <h1 className="text-2xl font-bold">🌐 Unified Cloud Dashboard</h1>
+      <p className="text-gray-600">Welcome, {user?.displayName}</p>
       {/* Connectors container */}
       {step === 1 && (
         <section className="bg-gradient-to-r from-blue-100/60 via-indigo-50 to-white p-6 rounded-2xl shadow-sm mb-6">
@@ -133,6 +118,7 @@ export default function Dashboard() {
                   Connect AWS
                 </button>
               </div>
+              <AwsSetupWizard />
             </div>
 
             {/* Azure Card */}
@@ -185,6 +171,7 @@ export default function Dashboard() {
                   Connect Azure
                 </button>
               </div>
+              <AzureWizard />
             </div>
           </div>
         </section>
