@@ -27,8 +27,8 @@ const AwsSetupWizard = ({ isOpen, onClose }: AwsWizardModalProps) => {
   const progressWidth = `${(step / 5) * 100}%`;
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-      <div className="bg-white p-6 rounded-xl shadow-lg w-[480px] relative max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-50">
+      <div className="bg-white p-6 rounded-xl shadow-2xl w-[480px] relative max-h-[90vh] overflow-y-auto border border-gray-200">
         {/* Close button */}
         <button
           onClick={onClose}
@@ -43,9 +43,9 @@ const AwsSetupWizard = ({ isOpen, onClose }: AwsWizardModalProps) => {
         </h2>
 
         {/* Progress Bar */}
-        <div className="w-full bg-gray-200 h-2 rounded-full mb-4">
+        <div className="w-full bg-gray-200 h-2 rounded-full mb-4 overflow-hidden">
           <div
-            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+            className="bg-blue-600 h-2 transition-all duration-300"
             style={{ width: progressWidth }}
           ></div>
         </div>
@@ -64,8 +64,7 @@ const AwsSetupWizard = ({ isOpen, onClose }: AwsWizardModalProps) => {
               >
                 AWS Management Console
               </a>{" "}
-              and log in with your <strong>root account email</strong>.  
-              This is the main email you used when creating your AWS account.
+              and log in with your <strong>root account email</strong>.
             </p>
             <input
               type="email"
@@ -82,10 +81,6 @@ const AwsSetupWizard = ({ isOpen, onClose }: AwsWizardModalProps) => {
         {step === 2 && (
           <>
             <p className="mb-2 font-medium">🆔 Find your AWS Account ID</p>
-            <p className="text-sm text-gray-600 mb-3">
-              In the AWS Console, click on your account name (top-right corner).  
-              You’ll see a 12-digit <strong>Account ID</strong>. Copy it here.
-            </p>
             <input
               type="text"
               name="accountId"
@@ -101,19 +96,6 @@ const AwsSetupWizard = ({ isOpen, onClose }: AwsWizardModalProps) => {
         {step === 3 && (
           <>
             <p className="mb-2 font-medium">👤 Create an IAM User</p>
-            <p className="text-sm text-gray-600 mb-3 leading-relaxed">
-              Go to the <strong>IAM</strong> section in AWS Console → Users →{" "}
-              <strong>Add Users</strong>.
-              <br />  
-              - Choose a <strong>username</strong> (e.g., <code>cloud-connector</code>).  
-              - Select <strong>Programmatic access</strong> (for API/CLI use).  
-              - On <strong>Permissions</strong>, attach:  
-              <ul className="list-disc ml-5">
-                <li>✅ <code>AdministratorAccess</code> (full access)</li>
-                <li>or custom policies: <code>AmazonEC2FullAccess</code>, <code>AmazonS3FullAccess</code>, etc.</li>
-              </ul>
-              - Finish and download the <strong>.csv file</strong> (it contains keys).
-            </p>
             <input
               type="text"
               name="iamUser"
@@ -129,11 +111,6 @@ const AwsSetupWizard = ({ isOpen, onClose }: AwsWizardModalProps) => {
         {step === 4 && (
           <>
             <p className="mb-2 font-medium">🔐 Enter Access Key ID</p>
-            <p className="text-sm text-gray-600 mb-3">
-              From the IAM user you just created, paste the{" "}
-              <strong>Access Key ID</strong>.  
-              It will look like: <code>AKIAxxxxxxxxxxxx</code>.
-            </p>
             <input
               type="text"
               name="accessKey"
@@ -149,12 +126,6 @@ const AwsSetupWizard = ({ isOpen, onClose }: AwsWizardModalProps) => {
         {step === 5 && (
           <>
             <p className="mb-2 font-medium">🔑 Enter Secret Access Key</p>
-            <p className="text-sm text-gray-600 mb-3">
-              Along with the Access Key, AWS gives a{" "}
-              <strong>Secret Access Key</strong>.  
-              ⚠️ Important: You’ll only see this once when creating the user.  
-              Save it securely in a password manager.
-            </p>
             <input
               type="password"
               name="secretKey"

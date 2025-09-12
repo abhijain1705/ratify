@@ -4,8 +4,19 @@ import Image from "next/image";
 import { useState, useEffect } from "react";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { auth } from "@/firebase";
+
+// Sections
 import AwsSetupWizard from "@/sections/awsSetupWizard";
 import AzureWizard from "@/sections/azureWizard";
+
+// Visuals
+import Availability from "@/visuals/Availability";
+import Egress from "@/visuals/egress";
+import Ingress from "@/visuals/ingress";
+import SuccessE2ELatency from "@/visuals/SuccessE2ELatency";
+import SuccessServerLatency from "@/visuals/SuccessServerLatency";
+import Transactions from "@/visuals/Transactions";
+import UsedCapacity from "@/visuals/UsedCapacity";
 
 // Assets
 import AWSLogo from "@/assets/images.png";
@@ -40,6 +51,8 @@ function Modal({
 export default function Dashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [openModal, setOpenModal] = useState<"aws" | "azure" | null>(null);
+  const [awsConnected, setAwsConnected] = useState(false);
+  const [azureConnected, setAzureConnected] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => setUser(u));
@@ -67,6 +80,7 @@ export default function Dashboard() {
 
   return (
     <div className="p-6 space-y-6 min-h-screen bg-gray-50">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">🌐 Unified Cloud Dashboard</h1>
         <button
@@ -89,34 +103,67 @@ export default function Dashboard() {
           </h3>
           <button
             onClick={() => setOpenModal("aws")}
-            className="w-full py-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow transition"
+            className={`w-full py-3 rounded-lg ${
+              awsConnected
+                ? "bg-green-600 hover:bg-green-700"
+                : "bg-indigo-600 hover:bg-indigo-700"
+            } text-white font-medium shadow transition`}
           >
-            Open AWS Setup
+            {awsConnected ? "Connected ✅" : "Open AWS Setup"}
           </button>
         </div>
 
         {/* Azure Card */}
         <div className="bg-white border rounded-2xl p-6 shadow flex flex-col items-center">
-          <Image src={AzureLogo} alt="Azure" width={90} height={40} />
+          <Image src={AzureLogo} alt="Azure" width={100} height={50} />
           <h3 className="text-lg font-medium text-gray-800 mt-4 mb-6">
             Azure Connector
           </h3>
           <button
             onClick={() => setOpenModal("azure")}
-            className="w-full py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium shadow transition"
+            className={`w-full py-3 rounded-lg ${
+              azureConnected
+                ? "bg-green-600 hover:bg-green-700"
+                : "bg-blue-600 hover:bg-blue-700"
+            } text-white font-medium shadow transition`}
           >
-            Open Azure Setup
+            {azureConnected ? "Connected ✅" : "Open Azure Setup"}
           </button>
         </div>
       </section>
 
+      {/* Show Visuals only if connected */}
+      {(awsConnected || azureConnected) && (
+        <section className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 mt-10">
+          <Availability />
+          <Ingress />
+          <Egress />
+          <SuccessE2ELatency />
+          <SuccessServerLatency />
+          <Transactions />
+          <UsedCapacity />
+        </section>
+      )}
+
       {/* Popup Modals */}
       <Modal isOpen={openModal === "aws"} onClose={() => setOpenModal(null)}>
-        <AwsSetupWizard isOpen={openModal === "aws"} onClose={() => setOpenModal(null)} />
+        <AwsSetupWizard
+          isOpen={openModal === "aws"}
+          onClose={() => {
+            setOpenModal(null);
+            setAwsConnected(true); // mark AWS as connected after closing
+          }}
+        />
       </Modal>
 
       <Modal isOpen={openModal === "azure"} onClose={() => setOpenModal(null)}>
-        <AzureWizard isOpen={openModal === "azure"} onClose={() => setOpenModal(null)} />
+        <AzureWizard
+          isOpen={openModal === "azure"}
+          onClose={() => {
+            setOpenModal(null);
+            setAzureConnected(true); // mark Azure as connected after closing
+          }}
+        />
       </Modal>
     </div>
   );
