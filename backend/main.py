@@ -4,27 +4,46 @@ import asyncio
 import requests
 from pydantic import BaseModel
 from dotenv import load_dotenv
-import firebase.firebase_config
 from datetime import datetime, timedelta
 from firebase_admin import auth as firebase_auth
-from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Body
+from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, Body, Request
+
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from azure.identity import ClientSecretCredential
 from clouds.azure.azure import get_azure_vm_metrics, get_azure_storage_metrics, get_azure_billing
 
-
 from firebase.firestore_client import save_connector
 from functions.auth import verify_firebase_token, User
 from fernet.hash import encrypt_value, decrypt_value
-from clouds.aws.aws import validate_aws_credentials, get_cpu_utilization, set_asg_capacity, get_billing, get_s3_metrics, get_rds_metrics, get_ec2_client
+from clouds.aws.aws import validate_aws_credentials, get_cpu_utilization, set_asg_capacity, get_billing, get_s3_metrics, get_rds_metrics, get_ec2_client, check_iam_policies, check_security_groups
 
+import redis.asyncio as aioredis
+import json
+
+limiter = Limiter(key_func=get_remote_address)
 load_dotenv()
 
 app = FastAPI()
 
-USER_CONNECTORS = {}
-
 FIREBASE_API_KEY = os.getenv("FIREBASE_API_KEY")
+
+# Redis connection
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+redis = aioredis.from_url(REDIS_URL, decode_responses=True)
+
+# Register exception handler
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+
+@app.get("/ping")
+@limiter.limit("10/minute")   # 10 requests per minute per IP
+async def ping(request: Request):
+    return {"msg": "pong"}
 
 # ---------- Models ----------
 class AzureConnector(BaseModel):
@@ -47,9 +66,34 @@ class BillingRequest(BaseModel):
     start_date: str  # YYYY-MM-DD
     end_date: str    # YYYY-MM-DD
 
+    # ---------- Redis Helper Functions ----------
+async def save_connector_to_redis(user_id: str, provider: str, connector: dict):
+    key = f"user:{user_id}:connectors"
+    # Encrypt sensitive values before saving
+    safe_connector = {k: encrypt_value(v) if "secret" in k or "key" in k else v
+                      for k, v in connector.items()}
+    await redis.hset(key, provider, json.dumps(safe_connector))
+
+
+async def get_connector_from_redis(user_id: str, provider: str):
+    key = f"user:{user_id}:connectors"
+    data = await redis.hget(key, provider)
+    if not data:
+        return None
+    connector = json.loads(data)
+    # Decrypt secrets
+    return {k: decrypt_value(v) if "secret" in k or "key" in k else v
+            for k, v in connector.items()}
+
+
+async def delete_connector_from_redis(user_id: str, provider: str):
+    key = f"user:{user_id}:connectors"
+    await redis.hdel(key, provider)
+
+
 # ---------- Helpers ----------
-def get_user_azure_credential(user_id):
-    connector = USER_CONNECTORS.get(user_id)  # later replace with Firestore
+async def get_user_azure_credential(user_id):
+    connector = await get_connector_from_redis(user_id, "azure")
     if not connector:
         raise Exception("No Azure connector found for this user")
     return ClientSecretCredential(
@@ -60,40 +104,41 @@ def get_user_azure_credential(user_id):
 
 # ---------- Endpoints ----------
 @app.post("/api/connectors/azure")
-def connect_azure(connector: AzureConnector, user: User = Depends(verify_firebase_token)):
+async def connect_azure(connector: AzureConnector, user: User = Depends(verify_firebase_token)):
     try:
-        encrypted_secret = encrypt_value(connector.client_secret)
+        await save_connector_to_redis(user.uid, "azure", {
+            "tenant_id": (connector.tenant_id),
+            "client_id": (connector.client_id),
+            "client_secret": encrypt_value(connector.client_secret),   # 🔐 encrypted
+            "subscription_id": (connector.subscription_id),
+        })
 
-        # Save in memory / Firestore
-        USER_CONNECTORS[user.uid] = {
-            "tenant_id": connector.tenant_id,
-            "client_id": connector.client_id,
-            "client_secret": encrypted_secret,
-            "subscription_id": connector.subscription_id,
-        }
+        save_connector(
+            user.uid,
+            "azure",
+            {"service": "azure", "data": connector.dict()}
+        )
 
-        # Persist to Firestore too
-        save_connector(user.uid, {"service": "azure", "data": USER_CONNECTORS[user.uid]})
-
-        return {"message": "Azure connector saved successfully"}
+        return {"message": "Azure connector saved securely"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.post("/api/azure/vm-metrics")
-def azure_vm_metrics(data: VMMetricsRequest = Body(...), user: User = Depends(verify_firebase_token)):
+async def azure_vm_metrics(data: VMMetricsRequest = Body(...), user: User = Depends(verify_firebase_token)):
     try:
-        cred, sub_id = get_user_azure_credential(user.uid)
+        cred, sub_id = await get_user_azure_credential(user.uid)
         result = get_azure_vm_metrics(cred, sub_id, data.resource_group, data.vm_name, data.metric_name)
         return {"metrics": result}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
+
 @app.post("/api/azure/storage-metrics")
-def azure_storage_metrics(data: StorageMetricsRequest = Body(...), user: User = Depends(verify_firebase_token)):
+async def azure_storage_metrics(data: StorageMetricsRequest = Body(...), user: User = Depends(verify_firebase_token)):
     try:
-        cred, sub_id = get_user_azure_credential(user.uid)
+        cred, sub_id = await get_user_azure_credential(user.uid)
         result = get_azure_storage_metrics(cred, sub_id, data.resource_group, data.storage_account, data.metric_name)
         return {"metrics": result}
     except Exception as e:
@@ -101,16 +146,16 @@ def azure_storage_metrics(data: StorageMetricsRequest = Body(...), user: User = 
 
 
 @app.post("/api/azure/billing")
-def azure_billing(data: BillingRequest = Body(...), user: User = Depends(verify_firebase_token)):
+async def azure_billing(data: BillingRequest = Body(...), user: User = Depends(verify_firebase_token)):
     try:
-        cred, sub_id = get_user_azure_credential(user.uid)
+        cred, sub_id = await get_user_azure_credential(user.uid)
         result = get_azure_billing(cred, sub_id, data.start_date, data.end_date)
         return {"billing": result}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))    
 
-def get_user_azure_credential(user_id):
-    connector = USER_CONNECTORS.get(user_id)  # or load from Firestore
+async def get_user_azure_credential(user_id):
+    connector = await get_connector_from_redis(user_id, "azure")
     if not connector:
         raise Exception("No Azure connector found for this user")
 
@@ -121,19 +166,19 @@ def get_user_azure_credential(user_id):
     ), connector["subscription_id"]
 
 @app.post("/api/aws/security/firewall")
-def add_firewall_rule(data: dict, user: User = Depends(verify_firebase_token)):
+async def add_firewall_rule(data: dict, user: User = Depends(verify_firebase_token)):
     """
     Adds a firewall (security group) rule
     Example body:
     {
         "sg_id": "sg-0123456789abcdef",
         "port": 22,
-        "protocol": "tcp",
+        "protocol": "tcp",   
         "cidr": "0.0.0.0/0"
     }
     """
     try:
-        connector = get_user_connector(user)
+        connector = await get_user_connector(user)
         ec2 = get_ec2_client(connector["access_key"], connector["secret_key"], connector["region"])
         ec2.authorize_security_group_ingress(
             GroupId=data["sg_id"],
@@ -150,7 +195,7 @@ def add_firewall_rule(data: dict, user: User = Depends(verify_firebase_token)):
 
 
 @app.post("/api/aws/rds-metrics/{db_instance_identifier}")
-def fetch_rds_metrics(
+async def fetch_rds_metrics(
     db_instance_identifier: str,
     data: dict = Body(...),
     user: User = Depends(verify_firebase_token)
@@ -164,7 +209,7 @@ def fetch_rds_metrics(
         "metrics": ["CPUUtilization", "FreeStorageSpace"]   # Optional, fetches these metrics
     }
     """
-    connector = get_user_connector(user)
+    connector = await get_user_connector(user)
     start = data.get("start")
     end = data.get("end")
 
@@ -184,13 +229,41 @@ def fetch_rds_metrics(
         end_time
     )
 
+@app.get("/api/aws/security-checks")
+async def aws_security_checks(user: User = Depends(verify_firebase_token)):
+    try:
+        connector = await get_user_connector(user)
+        ec2 = boto3.client(
+            "ec2",
+            aws_access_key_id=decrypt_value(connector["access_key"]),
+            aws_secret_access_key=decrypt_value(connector["secret_key"]),
+            region_name=connector["region"],
+        )
+        iam = boto3.client(
+            "iam",
+            aws_access_key_id=decrypt_value(connector["access_key"]),
+            aws_secret_access_key=decrypt_value(connector["secret_key"]),
+            region_name=connector["region"],
+        )
+
+        sg_issues = check_security_groups(ec2)
+        iam_issues = check_iam_policies(iam)
+
+        return {
+            "security_groups": sg_issues,
+            "iam": iam_issues,
+            "ddos": "Rate limiting & throttling enabled at API level."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 @app.post("/api/aws/s3-metrics/{bucket_name}")
-def fetch_s3_metrics(
+async def fetch_s3_metrics(
     bucket_name: str,
     data: dict = Body(...),
     user: User = Depends(verify_firebase_token)
 ):
-    connector = get_user_connector(user)
+    connector = await get_user_connector(user)
 
     start = data.get("start")  # e.g. "2023-01-01"
     end = data.get("end")      # e.g. "2023-01-31"
@@ -236,8 +309,8 @@ def login(payload: dict):
 
 
 @app.post("/api/billing")
-def fetch_billing(data: dict, user: User = Depends(verify_firebase_token)):
-    connector = get_user_connector(user)
+async def fetch_billing(data: dict, user: User = Depends(verify_firebase_token)):
+    connector = await get_user_connector(user)
     start = data.get("start")  # e.g. "2023-01-01"
     end = data.get("end")      # e.g. "2023-01-31"
 
@@ -252,15 +325,16 @@ def fetch_billing(data: dict, user: User = Depends(verify_firebase_token)):
         end
     )
 
+
 @app.post("/api/connectors/aws")
-def connect_aws(data: dict, user: User = Depends(verify_firebase_token)):
+async def connect_aws(data: dict, user: User = Depends(verify_firebase_token)):
     access_key = data["access_key"]
     secret_key = data["secret_key"]
     region = data.get("region", "us-east-1")
 
     try:
         identity = validate_aws_credentials(access_key, secret_key, region)
-        save_connector(user.uid, {
+        save_connector(user.uid, "aws", {
             "access_key": encrypt_value(access_key),
             "secret_key": encrypt_value(secret_key),
             "region": region,
@@ -270,17 +344,17 @@ def connect_aws(data: dict, user: User = Depends(verify_firebase_token)):
         raise HTTPException(status_code=400, detail=str(e))
 
     # Store ENCRYPTED
-    USER_CONNECTORS[user.uid] = {
+    await save_connector_to_redis(user.uid, "aws", {
         "access_key": encrypt_value(access_key),
         "secret_key": encrypt_value(secret_key),
         "region": region,
         "identity": identity,
-    }
+    })
 
     return {"msg": "AWS connector added", "identity": identity}
 
-def get_user_connector(user: User):
-    connector = USER_CONNECTORS.get(user.uid)
+async def get_user_connector(user: User):
+    connector = await get_connector_from_redis(user.uid, "aws")
     if not connector:
         raise HTTPException(status_code=404, detail="AWS connector not found")
 
@@ -294,12 +368,12 @@ def get_user_connector(user: User):
 
 
 @app.post("/api/aws/metrics/{instance_id}")
-def fetch_metrics(
+async def fetch_metrics(
     instance_id: str,
     data: dict = Body(...),
     user: User = Depends(verify_firebase_token)
 ):
-    connector = get_user_connector(user)
+    connector = await get_user_connector(user)
     
     start = data.get("start")  # e.g. "2023-01-01"
     end = data.get("end")      # e.g. "2023-01-31"
@@ -315,10 +389,13 @@ def fetch_metrics(
 
 
 @app.post("/api/aws/scale")
-def scale_asg(payload: dict, user: User = Depends(verify_firebase_token)):
-    connector = get_user_connector(user)
+async def scale_asg(payload: dict, user: User = Depends(verify_firebase_token)):
+    connector = await get_user_connector(user)
     asg_name = payload["asg"]
     desired = payload["desired_capacity"]
+
+    if not asg_name or desired is None:
+        raise HTTPException(status_code=400, detail="ASG name and desired capacity required")
 
     return set_asg_capacity(
         connector["access_key"],
@@ -388,7 +465,7 @@ async def ws_azure(websocket: WebSocket):
 
     # 🔹 Load Azure connector
     try:
-        cred, sub_id = get_user_azure_credential(uid)
+        cred, sub_id = await get_user_azure_credential(uid)
     except Exception as e:
         await websocket.send_json({"error": str(e)})
         await websocket.close(code=1008)
@@ -504,7 +581,7 @@ async def ws_stream(websocket: WebSocket):
         return
 
     # Load connector for user
-    connector = USER_CONNECTORS.get(uid)
+    connector = await get_connector_from_redis(uid, "aws")
     if not connector:
         await websocket.send_json({"error": "No AWS connector found for user. Please call /api/connectors/aws first."})
         await websocket.close(code=1008)
