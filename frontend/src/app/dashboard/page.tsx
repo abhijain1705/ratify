@@ -1,4 +1,7 @@
 "use client";
+import AzoreLogo from "@/assets/azure.png";
+import AWSLogo from "@/assets/images.png";
+import Image from "next/image";                                                   
 import { useState, useEffect } from "react";
 import { User, onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/firebase";
@@ -58,7 +61,10 @@ export default function Dashboard() {
         <div className="grid md:grid-cols-2 gap-6">
           {/* AWS */}
           <div className="border rounded-xl p-4 shadow">
-            <h2 className="text-lg font-semibold mb-3">🔑 AWS Connector</h2>
+            <h2 className="text-lg font-semibold mb-3">
+                
+                <Image src={AWSLogo} alt="celestial logo" className="logo-ticker-image" />
+                 AWS Connector</h2>
             <input className="w-full p-2 border rounded mb-2" placeholder="Access Key"
               value={awsDetails.accessKey} onChange={(e) => setAwsDetails({ ...awsDetails, accessKey: e.target.value })} />
             <input className="w-full p-2 border rounded mb-2" placeholder="Secret Key" type="password"
@@ -72,7 +78,9 @@ export default function Dashboard() {
 
           {/* Azure */}
           <div className="border rounded-xl p-4 shadow">
-            <h2 className="text-lg font-semibold mb-3">🔑 Azure Connector</h2>
+            <h2 className="text-lg font-semibold mb-3">
+                <Image src={AzoreLogo} alt="Echo logo" className="logo-ticker-image" />
+                 Azure Connector</h2>
             <input className="w-full p-2 border rounded mb-2" placeholder="Client ID"
               value={azureDetails.clientId} onChange={(e) => setAzureDetails({ ...azureDetails, clientId: e.target.value })} />
             <input className="w-full p-2 border rounded mb-2" placeholder="Tenant ID"
