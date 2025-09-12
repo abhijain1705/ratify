@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import AzoreLogo from "@/assets/azure.png";
+import Image from "next/image";
 import {
   AreaChart,
   Area,
@@ -163,6 +165,7 @@ export const UsedCapacityComponent: React.FC<UsedCapacityProps> = ({
         <div className="flex items-center space-x-2">
           <span className="text-2xl">📊</span>
           <div>
+            <Image src={AzoreLogo} alt="Echo logo" className="logo-ticker-image" />
             <h3 className="text-lg font-semibold text-gray-900">Used Capacity</h3>
             <p className="text-sm text-gray-500">
               The amount of storage used by the storage account

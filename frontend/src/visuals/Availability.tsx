@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from "react";
 
+import AzoreLogo from "@/assets/azure.png";
+import Image from "next/image";
+
 // Types
 interface MetricDataPoint {
   time_stamp: string;
@@ -189,6 +192,8 @@ export const AvailabilityComponent: React.FC<AvailabilityProps> = ({
         <div className="flex items-center space-x-2">
           <span className="text-2xl">✅</span>
           <div>
+            
+            <Image src={AzoreLogo} alt="Echo logo" className="logo-ticker-image" />
             <h3 className="text-lg font-semibold text-gray-900">
               Availability
             </h3>
