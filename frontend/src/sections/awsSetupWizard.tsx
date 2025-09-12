@@ -64,8 +64,8 @@ const AwsSetupWizard = ({ isOpen, onClose }: AwsWizardModalProps) => {
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-      <div className="bg-white p-6 rounded-xl shadow-lg w-[480px] relative max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm z-50">
+      <div className="bg-white p-6 rounded-xl shadow-2xl w-[480px] relative max-h-[90vh] overflow-y-auto border border-gray-200">
         {/* Close button */}
         <button onClick={onClose} className="absolute top-3 right-3 text-gray-500 hover:text-gray-800">
           ✖
@@ -74,21 +74,28 @@ const AwsSetupWizard = ({ isOpen, onClose }: AwsWizardModalProps) => {
         <h2 className="text-lg font-bold mb-2">🚀 AWS Setup Wizard (Step {step}/3)</h2>
 
         {/* Progress Bar */}
-        <div className="w-full bg-gray-200 h-2 rounded-full mb-4">
-          <div className="bg-blue-600 h-2 rounded-full transition-all duration-300" style={{ width: progressWidth }}></div>
+        <div className="w-full bg-gray-200 h-2 rounded-full mb-4 overflow-hidden">
+          <div
+            className="bg-blue-600 h-2 transition-all duration-300"
+            style={{ width: progressWidth }}
+          ></div>
         </div>
 
         {/* Step 1 */}
         {step === 1 && (
           <>
-            <p className="mb-2 font-medium">👤 Create a new IAM User</p>
-            <p className="text-sm text-gray-600 mb-3 leading-relaxed">
-              1️⃣ Go to <strong>AWS Console → IAM → Users → Add Users</strong>.<br />
-              2️⃣ Username: <code>cloud-connector</code>.<br />
-              3️⃣ Access type: <strong>Programmatic access</strong>.<br />
-              4️⃣ Attach existing policies: <strong>ReadOnlyAccess</strong> (allows us to read metrics safely).<br />
-              5️⃣ Skip tags, review and create user.<br />
-              6️⃣ Download the CSV file containing <strong>Access Key ID</strong> and <strong>Secret Access Key</strong>.
+            <p className="mb-2 font-medium">🔑 Sign in with your AWS Root Email</p>
+            <p className="text-sm text-gray-600 mb-3">
+              Go to{" "}
+              <a
+                href="https://console.aws.amazon.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 underline"
+              >
+                AWS Management Console
+              </a>{" "}
+              and log in with your <strong>root account email</strong>.
             </p>
             <button onClick={nextStep} className="px-4 py-2 bg-blue-600 text-white rounded-md">Next</button>
           </>
