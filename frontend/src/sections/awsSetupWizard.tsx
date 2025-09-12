@@ -1,194 +1,197 @@
 import React, { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle, Copy } from "lucide-react";
 
-const steps = [
-  {
-    title: "Sign in to AWS Console",
-    content: (
-      <p>
-        Go to{" "}
-        <a
-          href="https://console.aws.amazon.com/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-600 underline"
-        >
-          AWS Management Console
-        </a>{" "}
-        and log in with your root account or IAM admin.
-      </p>
-    ),
-  },
-  {
-    title: "Create IAM User",
-    content: (
-      <ul className="list-disc list-inside space-y-1">
-        <li>
-          Navigate to <b>IAM → Users → Add User</b>
-        </li>
-        <li>
-          Give it a name (e.g. <code>UnifiedCloudUser</code>)
-        </li>
-        <li>
-          Select <b>Programmatic Access</b>
-        </li>
-        <li>
-          ❌ Do <b>NOT</b> enable console access
-        </li>
-      </ul>
-    ),
-  },
-  {
-    title: "Attach Policy",
-    content: (
-      <>
-        <p>
-          Copy the following JSON policy and attach it to the IAM user. This
-          gives <b>only the minimum permissions</b> required:
-        </p>
-        <div className="bg-gray-100 p-3 rounded-lg relative mt-2">
-          <pre className="text-sm overflow-x-auto">
-{`{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "ec2:DescribeInstances",
-        "ec2:DescribeRegions",
-        "s3:ListAllMyBuckets",
-        "s3:GetBucketLocation",
-        "cloudwatch:GetMetricData",
-        "cloudwatch:ListMetrics",
-        "iam:GetUser"
-      ],
-      "Resource": "*"
-    }
-  ]
-}`}
-          </pre>
-          <button
-            className="absolute top-2 right-2 p-1 rounded hover:bg-gray-200"
-            onClick={() =>
-              navigator.clipboard.writeText(`{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "ec2:DescribeInstances",
-        "ec2:DescribeRegions",
-        "s3:ListAllMyBuckets",
-        "s3:GetBucketLocation",
-        "cloudwatch:GetMetricData",
-        "cloudwatch:ListMetrics",
-        "iam:GetUser"
-      ],
-      "Resource": "*"
-    }
-  ]
-}`)
-            }
-          >
-            <Copy className="w-4 h-4" />
-          </button>
-        </div>
-      </>
-    ),
-  },
-  {
-    title: "Download Access Keys",
-    content: (
-      <ul className="list-disc list-inside space-y-1">
-        <li>
-          After creating the user → download the <code>.csv</code> file
-        </li>
-        <li>
-          It contains <b>Access Key ID</b> and <b>Secret Access Key</b>
-        </li>
-        <li>Keep it safe 🔒</li>
-      </ul>
-    ),
-  },
-  {
-    title: "Connect in Dashboard",
-    content: (
-      <p>
-        Enter your <b>Access Key</b>, <b>Secret Key</b>, and{" "}
-        <b>Region (e.g. us-east-1)</b> into the dashboard → Click{" "}
-        <span className="font-semibold">Connect AWS</span>. ✅ Done!
-      </p>
-    ),
-  },
-];
+interface AwsWizardModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
 
-const AwsSetupWizard: React.FC = () => {
-  const [currentStep, setCurrentStep] = useState(0);
+const AwsSetupWizard = ({ isOpen, onClose }: AwsWizardModalProps) => {
+  const [step, setStep] = useState(1);
+  const [formData, setFormData] = useState({
+    rootEmail: "",
+    accountId: "",
+    iamUser: "",
+    accessKey: "",
+    secretKey: "",
+  });
 
-  const nextStep = () => {
-    if (currentStep < steps.length - 1) setCurrentStep(currentStep + 1);
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const prevStep = () => {
-    if (currentStep > 0) setCurrentStep(currentStep - 1);
-  };
+  const nextStep = () => setStep((prev) => prev + 1);
+  const prevStep = () => setStep((prev) => prev - 1);
+
+  if (!isOpen) return null;
+
+  const progressWidth = `${(step / 5) * 100}%`;
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <div className="bg-white shadow-lg rounded-lg p-6">
-        <h2 className="text-2xl font-bold mb-4">
-          🚀 AWS Setup Wizard (5 Steps)
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+      <div className="bg-white p-6 rounded-xl shadow-lg w-[480px] relative max-h-[90vh] overflow-y-auto">
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 text-gray-500 hover:text-gray-800"
+        >
+          ✖
+        </button>
+
+        {/* Title */}
+        <h2 className="text-lg font-bold mb-2">
+          🚀 AWS Setup Wizard (Step {step}/5)
         </h2>
 
-        {/* Progress bar */}
-        <div className="w-full bg-gray-200 h-2 rounded-full mb-6">
+        {/* Progress Bar */}
+        <div className="w-full bg-gray-200 h-2 rounded-full mb-4">
           <div
-            className="bg-blue-500 h-2 rounded-full transition-all"
-            style={{
-              width: `${((currentStep + 1) / steps.length) * 100}%`,
-            }}
-          />
+            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+            style={{ width: progressWidth }}
+          ></div>
         </div>
 
-        {/* Step content */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentStep}
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -15 }}
-            transition={{ duration: 0.3 }}
-          >
-            <h3 className="text-xl font-semibold mb-2">
-              {steps[currentStep].title}
-            </h3>
-            <div className="text-gray-700 space-y-3">
-              {steps[currentStep].content}
-            </div>
-          </motion.div>
-        </AnimatePresence>
+        {/* Step 1 */}
+        {step === 1 && (
+          <>
+            <p className="mb-2 font-medium">🔑 Sign in with your AWS Root Email</p>
+            <p className="text-sm text-gray-600 mb-3">
+              Go to{" "}
+              <a
+                href="https://console.aws.amazon.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 underline"
+              >
+                AWS Management Console
+              </a>{" "}
+              and log in with your <strong>root account email</strong>.  
+              This is the main email you used when creating your AWS account.
+            </p>
+            <input
+              type="email"
+              name="rootEmail"
+              placeholder="Enter AWS root email"
+              value={formData.rootEmail}
+              onChange={handleChange}
+              className="w-full border rounded-md p-2"
+            />
+          </>
+        )}
+
+        {/* Step 2 */}
+        {step === 2 && (
+          <>
+            <p className="mb-2 font-medium">🆔 Find your AWS Account ID</p>
+            <p className="text-sm text-gray-600 mb-3">
+              In the AWS Console, click on your account name (top-right corner).  
+              You’ll see a 12-digit <strong>Account ID</strong>. Copy it here.
+            </p>
+            <input
+              type="text"
+              name="accountId"
+              placeholder="Enter Account ID (12 digits)"
+              value={formData.accountId}
+              onChange={handleChange}
+              className="w-full border rounded-md p-2"
+            />
+          </>
+        )}
+
+        {/* Step 3 */}
+        {step === 3 && (
+          <>
+            <p className="mb-2 font-medium">👤 Create an IAM User</p>
+            <p className="text-sm text-gray-600 mb-3 leading-relaxed">
+              Go to the <strong>IAM</strong> section in AWS Console → Users →{" "}
+              <strong>Add Users</strong>.
+              <br />  
+              - Choose a <strong>username</strong> (e.g., <code>cloud-connector</code>).  
+              - Select <strong>Programmatic access</strong> (for API/CLI use).  
+              - On <strong>Permissions</strong>, attach:  
+              <ul className="list-disc ml-5">
+                <li>✅ <code>AdministratorAccess</code> (full access)</li>
+                <li>or custom policies: <code>AmazonEC2FullAccess</code>, <code>AmazonS3FullAccess</code>, etc.</li>
+              </ul>
+              - Finish and download the <strong>.csv file</strong> (it contains keys).
+            </p>
+            <input
+              type="text"
+              name="iamUser"
+              placeholder="Enter IAM Username"
+              value={formData.iamUser}
+              onChange={handleChange}
+              className="w-full border rounded-md p-2"
+            />
+          </>
+        )}
+
+        {/* Step 4 */}
+        {step === 4 && (
+          <>
+            <p className="mb-2 font-medium">🔐 Enter Access Key ID</p>
+            <p className="text-sm text-gray-600 mb-3">
+              From the IAM user you just created, paste the{" "}
+              <strong>Access Key ID</strong>.  
+              It will look like: <code>AKIAxxxxxxxxxxxx</code>.
+            </p>
+            <input
+              type="text"
+              name="accessKey"
+              placeholder="Enter Access Key ID"
+              value={formData.accessKey}
+              onChange={handleChange}
+              className="w-full border rounded-md p-2"
+            />
+          </>
+        )}
+
+        {/* Step 5 */}
+        {step === 5 && (
+          <>
+            <p className="mb-2 font-medium">🔑 Enter Secret Access Key</p>
+            <p className="text-sm text-gray-600 mb-3">
+              Along with the Access Key, AWS gives a{" "}
+              <strong>Secret Access Key</strong>.  
+              ⚠️ Important: You’ll only see this once when creating the user.  
+              Save it securely in a password manager.
+            </p>
+            <input
+              type="password"
+              name="secretKey"
+              placeholder="Enter Secret Key"
+              value={formData.secretKey}
+              onChange={handleChange}
+              className="w-full border rounded-md p-2"
+            />
+          </>
+        )}
 
         {/* Navigation buttons */}
         <div className="flex justify-between mt-6">
           <button
-            className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100 disabled:opacity-50"
             onClick={prevStep}
-            disabled={currentStep === 0}
+            disabled={step === 1}
+            className="px-4 py-2 bg-gray-200 rounded-md disabled:opacity-50"
           >
             Back
           </button>
-          {currentStep === steps.length - 1 ? (
-            <button className="px-4 py-2 flex items-center rounded-md bg-green-600 text-white hover:bg-green-700">
-              <CheckCircle className="w-4 h-4 mr-2" />
-              Finish
+
+          {step < 5 ? (
+            <button
+              onClick={nextStep}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md"
+            >
+              Next
             </button>
           ) : (
             <button
-              className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
-              onClick={nextStep}
+              onClick={() => {
+                console.log("Submitted:", formData);
+                onClose();
+              }}
+              className="px-4 py-2 bg-green-600 text-white rounded-md"
             >
-              Next
+              Finish
             </button>
           )}
         </div>
