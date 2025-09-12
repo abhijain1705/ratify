@@ -15,55 +15,55 @@ import { motion } from "framer-motion";
 
 const testimonials = [
   {
-    text: "As a seasoned designer always on the lookout for innovative tools, Framer.com instantly grabbed my attention.",
+    text: "Ratify made our AWS deployment seamless and stress-free! Highly recommended for cloud teams.",
     imageSrc: avatar1.src,
     name: "Jamie Rivera",
     username: "@jamietechguru00",
   },
   {
-    text: "Our team's productivity has skyrocketed since we started using this tool. ",
+    text: "Firebase integration was a breeze with Ratify. Our productivity doubled!",
     imageSrc: avatar2.src,
     name: "Josh Smith",
     username: "@jjsmith",
   },
   {
-    text: "This app has completely transformed how I manage my projects and deadlines.",
+    text: "Managing cloud resources is now effortless. Ratify is a game changer.",
     imageSrc: avatar3.src,
     name: "Morgan Lee",
     username: "@morganleewhiz",
   },
   {
-    text: "I was amazed at how quickly we were able to integrate this app into our workflow.",
+    text: "Ratify's support for multiple cloud apps helped us scale faster than ever.",
     imageSrc: avatar4.src,
     name: "Casey Jordan",
     username: "@caseyj",
   },
   {
-    text: "Planning and executing events has never been easier. This app helps me keep track of all the moving parts, ensuring nothing slips through the cracks.",
+    text: "No more headaches with cloud permissions. Ratify keeps everything organized.",
     imageSrc: avatar5.src,
     name: "Taylor Kim",
     username: "@taylorkimm",
   },
   {
-    text: "The customizability and integration capabilities of this app are top-notch.",
+    text: "The dashboard is intuitive and powerful. Ratify is now our go-to cloud tool.",
     imageSrc: avatar6.src,
     name: "Riley Smith",
     username: "@rileysmith1",
   },
   {
-    text: "Adopting this app for our team has streamlined our project management and improved communication across the board.",
+    text: "Switching between AWS and Firebase is so easy with Ratify!",
     imageSrc: avatar7.src,
     name: "Jordan Patels",
     username: "@jpatelsdesign",
   },
   {
-    text: "With this app, we can easily assign tasks, track progress, and manage documents all in one place.",
+    text: "Ratify's automation features save us hours every week.",
     imageSrc: avatar8.src,
     name: "Sam Dawson",
     username: "@dawsontechtips",
   },
   {
-    text: "Its user-friendly interface and robust features support our diverse needs.",
+    text: "Best cloud management app we've used. Ratify delivers on every promise.",
     imageSrc: avatar9.src,
     name: "Casey Harper",
     username: "@casey09",
@@ -127,9 +127,7 @@ export const Testimonials = () => {
     <section className="bg-white">
       <div className="container">
         <div className="section-heading">
-          <div className="flex justify-center">
-            <div className="tag">Testimonials</div>
-          </div>
+         
 
           <h2 className="section-title mt-5">What our users say</h2>
           <p className="section-des mt-5">

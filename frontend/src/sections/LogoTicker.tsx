@@ -1,10 +1,8 @@
 "use client";
-import acmeLogo from "@/assets/logo-acme.png";
-import quantamLogo from "@/assets/logo-quantum.png";
-import echoLogo from "@/assets/logo-echo.png";
-import celestialLogo from "@/assets/logo-celestial.png";
-import pulseLogo from "@/assets/logo-pulse.png";
-import apexLogo from "@/assets/logo-apex.png";
+import Gcloudlogo from "@/assets/Google_Cloud_Platform-Logo.wine.png";
+import HerokuLogo from "@/assets/Heroku_logo.svg.png";
+import AzoreLogo from "@/assets/azure.png";
+import AWSLogo from "@/assets/images.png";
 import { motion } from "framer-motion";
 import Image from "next/image";
 
@@ -28,19 +26,15 @@ export const LogoTicker = () => {
               repeatType: "loop",
             }}
           >
-            <Image src={acmeLogo} alt="Acme logo" className="logo-ticker-image" />
-            <Image src={quantamLogo} alt="quantam logo" className="logo-ticker-image" />
-            <Image src={echoLogo} alt="Echo logo" className="logo-ticker-image" />
-            <Image src={celestialLogo} alt="celestial logo" className="logo-ticker-image" />
-            <Image src={pulseLogo} alt="Pulse logo" className="logo-ticker-image" />
-            <Image src={apexLogo} alt="Apex logo" className="logo-ticker-image" />
+            <Image src={Gcloudlogo} alt="Acme logo" className="logo-ticker-image" />
+            <Image src={HerokuLogo} alt="quantam logo" className="logo-ticker-image" />
+            <Image src={AzoreLogo} alt="Echo logo" className="logo-ticker-image" />
+            <Image src={AWSLogo} alt="celestial logo" className="logo-ticker-image" />
 
-            <Image src={acmeLogo} alt="Acme logo" className="logo-ticker-image" />
-            <Image src={quantamLogo} alt="quantam logo" className="logo-ticker-image" />
-            <Image src={echoLogo} alt="Echo logo" className="logo-ticker-image" />
-            <Image src={celestialLogo} alt="celestial logo" className="logo-ticker-image" />
-            <Image src={pulseLogo} alt="Pulse logo" className="logo-ticker-image" />
-            <Image src={apexLogo} alt="Apex logo" className="logo-ticker-image" />
+            <Image src={Gcloudlogo} alt="Acme logo" className="logo-ticker-image" />
+            <Image src={HerokuLogo} alt="quantam logo" className="logo-ticker-image" />
+            <Image src={AzoreLogo} alt="Echo logo" className="logo-ticker-image" />
+            <Image src={AWSLogo} alt="celestial logo" className="logo-ticker-image" />
           </motion.div>
         </div>
       </div>
