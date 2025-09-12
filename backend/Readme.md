@@ -44,7 +44,7 @@ pip install -r requirements.txt
 ### 4. Run Locally
 
 ```bash
-uvicorn app.main:app --reload
+uvicorn main:app --reload --host 0.0.0.0
 ```
 App runs at [http://localhost:8000](http://localhost:8000)
 

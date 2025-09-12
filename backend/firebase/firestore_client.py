@@ -1,6 +1,6 @@
 from firebase_admin import firestore
 # Import config to ensure initialization
-import firebase_config
+import firebase.firebase_config
 
 db = firestore.client()
 

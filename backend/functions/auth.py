@@ -4,7 +4,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 # Import config to ensure initialization
-import firebase_config
+import firebase.firebase_config
 
 class User(BaseModel):
     uid: str
