@@ -13,7 +13,7 @@ import {
 import { useConnector } from "@/context/ConnectorContext";
 
 // Types
-interface MetricDataPoint {
+export interface UsedCapacityMetricDataPoint {
   time_stamp: string;
   average: number;
 }
@@ -44,7 +44,7 @@ const formatTimestamp = (timestamp: string): string => {
   });
 };
 
-const fetchUsedCapacityMetrics = async (
+export const fetchUsedCapacityMetrics = async (
   token: string,
   resourceGroup: string,
   storageAccount: string
@@ -65,52 +65,16 @@ const fetchUsedCapacityMetrics = async (
   return response.json();
 };
 
+interface UsedCapacityProps {
+  data: UsedCapacityMetricDataPoint[];
+  loading: boolean;
+  error: string | null;
+}
+
 export const UsedCapacityComponent: React.FC<UsedCapacityProps> = ({
-  resourceGroup = "ratify-group",
-  storageAccount = "ratifyhackathon",
-  autoRefresh = true,
-  refreshInterval = 60000,
+  data, error, loading
 }) => {
-  const [data, setData] = useState<MetricDataPoint[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const { user } = useConnector();
 
-  const fetchData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const token = await user?.getIdToken() || "";
-      const response = await fetchUsedCapacityMetrics(token, resourceGroup, storageAccount);
-
-      const timeseries = response?.metrics?.[0]?.timeseries;
-      if (Array.isArray(timeseries) && timeseries.length > 0) {
-        const rawData = timeseries[0]?.data ?? [];
-        // Ensure 'average' exists, fallback to 0
-        setData(rawData.map((d: any) => ({
-          time_stamp: d.time_stamp,
-          average: Number(d.average) || 0,
-        })));
-        setLastUpdated(new Date());
-      } else {
-        setData([]);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch data");
-    } finally {
-      setLoading(false);
-    }
-  }, [resourceGroup, storageAccount, user]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
-
-  useEffect(() => {
-    if (autoRefresh) {
-      const interval = setInterval(fetchData, refreshInterval);
-      return () => clearInterval(interval);
-    }
-  }, [autoRefresh, fetchData, refreshInterval]);
 
   const currentValue = data.length > 0 ? data[data.length - 1].average : 0;
   const previousValue = data.length > 1 ? data[data.length - 2].average : 0;
@@ -166,12 +130,7 @@ export const UsedCapacityComponent: React.FC<UsedCapacityProps> = ({
         <div className="text-4xl mb-2 text-red-500">⚠️</div>
         <div className="text-lg font-semibold text-red-600 mb-2">Error</div>
         <div className="text-gray-700 text-center">{error}</div>
-        <button
-          onClick={fetchData}
-          className="mt-6 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-        >
-          Retry
-        </button>
+
       </div>
     );
   }
@@ -190,13 +149,6 @@ export const UsedCapacityComponent: React.FC<UsedCapacityProps> = ({
               The amount of storage used by the storage account
             </p>
           </div>
-        </div>
-        <div className="flex items-center space-x-2">
-          {loading && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>}
-          <button onClick={fetchData} className="p-1 text-gray-500 hover:text-blue-600 transition-colors" title="Refresh">
-            🔄
-          </button>
-          {lastUpdated && <span className="text-xs text-gray-400">{lastUpdated.toLocaleTimeString()}</span>}
         </div>
       </div>
 
@@ -246,25 +198,27 @@ export const UsedCapacityComponent: React.FC<UsedCapacityProps> = ({
       </div>
 
       {/* Footer Stats */}
-      {data.length > 0 && (
-        <div className="mt-4 pt-4 border-t border-gray-100">
-          <div className="grid grid-cols-3 gap-4 text-sm">
-            <div className="text-center">
-              <div className="text-gray-500">Min</div>
-              <div className="font-medium">{formatBytes(stats.min)}</div>
-            </div>
-            <div className="text-center">
-              <div className="text-gray-500">Max</div>
-              <div className="font-medium">{formatBytes(stats.max)}</div>
-            </div>
-            <div className="text-center">
-              <div className="text-gray-500">Avg</div>
-              <div className="font-medium">{formatBytes(stats.avg)}</div>
+      {
+        data.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              <div className="text-center">
+                <div className="text-gray-500">Min</div>
+                <div className="font-medium">{formatBytes(stats.min)}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-gray-500">Max</div>
+                <div className="font-medium">{formatBytes(stats.max)}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-gray-500">Avg</div>
+                <div className="font-medium">{formatBytes(stats.avg)}</div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 };
 

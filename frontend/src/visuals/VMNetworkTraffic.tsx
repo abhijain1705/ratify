@@ -5,57 +5,14 @@ import { useCallback, useEffect, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 import { useConnector } from "@/context/ConnectorContext";
 
-const NetworkTraffic = () => {
-  const [data, setData] = useState([]);
-  const { user } = useConnector();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+interface NetworkTrafficProps {
+  data: any[];
+  loading: boolean;
+  error: string | null;
+}
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const metrics = ["Network In Total", "Network Out Total"];
-      const results: any = {};
 
-      const token = user ? await user.getIdToken() : '';
-      for (const metric of metrics) {
-        const res = await fetch("http://127.0.0.1:8000/api/azure/vm-metrics", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            resource_group: "ratify-group",
-            vm_name: "ratify-vm",
-            metric_name: metric,
-          }),
-        });
-        const json = await res.json();
-        results[metric] = json.metrics[0].timeseries[0].data
-          .filter((d: any) => d.average !== undefined)
-          .map((d: any) => ({
-            time: new Date(d.time_stamp).toLocaleTimeString(),
-            value: d.average,
-          }));
-      }
-
-      // Merge by time
-      const merged = results["Network In Total"].map((item: any, idx: number) => ({
-        time: item.time,
-        in: item.value,
-        out: results["Network Out Total"][idx]?.value,
-      }));
-
-      setData(merged);
-    } catch (err: any) {
-      setError("Failed to fetch network traffic data.");
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+const NetworkTraffic = ({ data, loading, error }: NetworkTrafficProps) => {
 
   if (loading) {
     return (
@@ -76,12 +33,7 @@ const NetworkTraffic = () => {
         <div className="text-4xl mb-2 text-red-500">⚠️</div>
         <div className="text-lg font-semibold text-red-600 mb-2">Error</div>
         <div className="text-gray-700 text-center">{error}</div>
-        <button
-          onClick={fetchData}
-          className="mt-6 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-        >
-          Retry
-        </button>
+
       </div>
     );
   }

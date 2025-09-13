@@ -13,7 +13,7 @@ import {
 import { useConnector } from '@/context/ConnectorContext';
 
 // Types
-interface MetricDataPoint {
+export interface IgressMetricDataPoint {
   time_stamp: string;
   average?: number; // average can be missing
 }
@@ -42,7 +42,7 @@ const formatTimestamp = (timestamp: string): string => {
   });
 };
 
-const fetchIngressMetrics = async (token: string, resourceGroup: string, storageAccount: string) => {
+export const fetchIngressMetrics = async (token: string, resourceGroup: string, storageAccount: string) => {
   try {
     const response = await fetch('http://127.0.0.1:8000/api/azure/storage-metrics', {
       method: 'POST',
@@ -60,60 +60,16 @@ const fetchIngressMetrics = async (token: string, resourceGroup: string, storage
   }
 };
 
-// Main Component
+interface IngressProps {
+  data: IgressMetricDataPoint[];
+  loading: boolean;
+  error: string | null;
+}
 export const IngressComponent: React.FC<IngressProps> = ({
-  resourceGroup = 'ratify-group',
-  storageAccount = 'ratifyhackathon',
-  autoRefresh = true,
-  refreshInterval = 60000
+  data,
+  loading,
+  error,
 }) => {
-  const [data, setData] = useState<MetricDataPoint[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const { user } = useConnector();
-
-  const fetchData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const token = user ? await user.getIdToken() : '';
-      const response = await fetchIngressMetrics(token, resourceGroup, storageAccount);
-      if (response.metrics && response.metrics.length > 0) {
-        const timeseries = response.metrics[0].timeseries;
-        if (timeseries && timeseries.length > 0) {
-          // Only include points with an 'average' value
-          const filteredData = (timeseries[0].data || []).filter((d: MetricDataPoint) =>
-            typeof d.average === "number"
-          );
-          setData(filteredData);
-          setLastUpdated(new Date());
-        } else {
-          setData([]);
-        }
-      } else {
-        setData([]);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch data');
-      setData([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [resourceGroup, storageAccount, user]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData, resourceGroup, storageAccount]);
-
-  useEffect(() => {
-    if (autoRefresh) {
-      const interval = setInterval(fetchData, refreshInterval);
-      return () => clearInterval(interval);
-    }
-  }, [autoRefresh, fetchData, refreshInterval]);
-
-  // Only use data points with an 'average'
   const validData = data;
 
   const currentValue = validData.length > 0 ? validData[validData.length - 1].average! : 0;
@@ -121,11 +77,21 @@ export const IngressComponent: React.FC<IngressProps> = ({
   const change = currentValue - previousValue;
   const changePercentage = previousValue !== 0 ? (change / previousValue) * 100 : 0;
 
-  const chartData = validData.map(point => ({
+  const chartData = validData.map((point) => ({
     ...point,
     formattedTime: formatTimestamp(point.time_stamp),
-    value: point.average!
+    value: point.average!,
   }));
+
+  const stats =
+    validData.length > 0
+      ? {
+        min: Math.min(...validData.map((d) => d.average!)),
+        max: Math.max(...validData.map((d) => d.average!)),
+        avg: validData.reduce((sum, d) => sum + d.average!, 0) / validData.length,
+        total: validData.reduce((sum, d) => sum + d.average!, 0),
+      }
+      : { min: 0, max: 0, avg: 0, total: 0 };
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -133,7 +99,7 @@ export const IngressComponent: React.FC<IngressProps> = ({
         <div className="bg-blue-900 text-white p-3 rounded-lg shadow-lg border border-blue-700">
           <p className="font-medium">{label}</p>
           <p className="text-sm">
-            <span style={{ color: '#2563eb' }}>●</span>
+            <span style={{ color: "#2563eb" }}>●</span>
             {` Ingress: ${formatBytes(payload[0].value)}`}
           </p>
         </div>
@@ -142,23 +108,14 @@ export const IngressComponent: React.FC<IngressProps> = ({
     return null;
   };
 
-  const stats = validData.length > 0 ? {
-    min: Math.min(...validData.map(d => d.average!)),
-    max: Math.max(...validData.map(d => d.average!)),
-    avg: validData.reduce((sum, d) => sum + d.average!, 0) / validData.length,
-    total: validData.reduce((sum, d) => sum + d.average!, 0)
-  } : { min: 0, max: 0, avg: 0, total: 0 };
-
-
   if (loading) {
     return (
       <div className="bg-white rounded-2xl shadow-md border border-blue-200 p-6 flex items-center justify-center h-full w-full">
-        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500">.........</div>
+        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500">...</div>
       </div>
-    )
+    );
   }
 
-  // Error conditional rendering
   if (error) {
     return (
       <div className="bg-white rounded-xl shadow-md border border-gray-200 p-6 flex flex-col items-center justify-center h-96">
@@ -169,12 +126,6 @@ export const IngressComponent: React.FC<IngressProps> = ({
         <div className="text-4xl mb-2 text-red-500">⚠️</div>
         <div className="text-lg font-semibold text-red-600 mb-2">Error</div>
         <div className="text-gray-700 text-center">{error}</div>
-        <button
-          onClick={fetchData}
-          className="mt-6 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-        >
-          Retry
-        </button>
       </div>
     );
   }
@@ -195,18 +146,6 @@ export const IngressComponent: React.FC<IngressProps> = ({
         <div className="flex items-center space-x-2">
           {loading && (
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-          )}
-          <button
-            onClick={fetchData}
-            className="p-1 text-gray-500 hover:text-blue-600 transition"
-            title="Refresh"
-          >
-            🔄
-          </button>
-          {lastUpdated && (
-            <span className="text-xs text-gray-400">
-              {lastUpdated.toLocaleTimeString()}
-            </span>
           )}
         </div>
       </div>

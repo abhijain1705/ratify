@@ -4,92 +4,36 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import axios from "axios";
 import AWSLogo from "@/assets/images.png";
 import Image from "next/image";
-import { useConnector } from "@/context/ConnectorContext";
 
-interface AwsMetric {
+export interface AwsMetric {
     Timestamp: string;
     Average: number;
     Unit: string;
 }
 
-interface AwsInstance {
+export interface AwsInstance {
     InstanceId: string;
     State: string;
     Name: string;
 }
 
-const AwsCPUUsage: React.FC = () => {
-    const [instances, setInstances] = useState<AwsInstance[]>([]);
-    const [selectedInstance, setSelectedInstance] = useState<string | null>(null);
-    const [data, setData] = useState<AwsMetric[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const { user } = useConnector();
+interface AwsCPUUsageProps {
+    instances: AwsInstance[];
+    selectedInstance: string | null;
+    data: AwsMetric[];
+    loading: boolean;
+    error: string | null;
+    onSelectInstance: (id: string) => void;
+}
 
-    // Fetch EC2 instances
-    const fetchInstances = useCallback(async () => {
-        try {
-            const token = user ? await user.getIdToken() : "";
-            const res = await axios.post(
-                "http://127.0.0.1:8000/aws/instances",
-                {}, // empty body
-                {
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                }
-            );
-
-            const instList: AwsInstance[] = res.data.instances;
-            setInstances(instList);
-
-            // auto-select the 1st instance
-            if (instList.length > 0) {
-                setSelectedInstance(instList[0].InstanceId);
-            }
-        } catch (err) {
-            console.error("Error fetching instances:", err);
-            setError("Failed to fetch AWS instances.");
-        }
-    }, [user]);
-
-    // Fetch metrics for the selected instance
-    const fetchMetrics = useCallback(async () => {
-        if (!selectedInstance) return;
-
-        setLoading(true);
-        try {
-            const token = user ? await user.getIdToken() : "";
-            const res = await axios.post(
-                `http://127.0.0.1:8000/api/aws/metrics/${selectedInstance}`,
-                {},
-                {
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                }
-            );
-            setData(res.data);
-            setError(null);
-        } catch (err) {
-            console.error("Error fetching AWS metrics:", err);
-            setError("Failed to fetch AWS metrics.");
-        } finally {
-            setLoading(false);
-        }
-    }, [selectedInstance, user]);
-
-    useEffect(() => {
-        fetchInstances();
-    }, [fetchInstances]);
-
-    useEffect(() => {
-        if (selectedInstance) {
-            fetchMetrics();
-        }
-    }, [selectedInstance, fetchMetrics]);
+const AwsCPUUsage: React.FC<AwsCPUUsageProps> = ({
+    instances,
+    selectedInstance,
+    data,
+    loading,
+    error,
+    onSelectInstance,
+}) => {
 
     if (loading && data.length === 0) {
         return (
@@ -109,12 +53,6 @@ const AwsCPUUsage: React.FC = () => {
                 <div className="text-4xl mb-2 text-red-500">⚠️</div>
                 <div className="text-lg font-semibold text-red-600 mb-2">Error</div>
                 <div className="text-gray-700 text-center">{error}</div>
-                <button
-                    onClick={fetchMetrics}
-                    className="mt-6 px-4 py-2 bg-cyan-500 text-white rounded hover:bg-cyan-600 transition"
-                >
-                    Retry
-                </button>
             </div>
         );
     }
@@ -126,7 +64,7 @@ const AwsCPUUsage: React.FC = () => {
                 {instances.length > 0 && (
                     <select
                         value={selectedInstance || ""}
-                        onChange={(e) => setSelectedInstance(e.target.value)}
+                        onChange={(e) => onSelectInstance(e.target.value)}
                         className="border rounded-md p-2 text-sm"
                     >
                         {instances.map((inst) => (

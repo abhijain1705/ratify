@@ -10,10 +10,9 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-import { useConnector } from '@/context/ConnectorContext';
 
 // Types
-interface MetricDataPoint {
+export interface TransactionMetricDataPoint {
   time_stamp: string;
   average: number;
 }
@@ -41,7 +40,7 @@ const formatTimestamp = (timestamp: string) =>
   });
 
 // Fetch function
-const fetchTransactionsMetrics = async (
+export const fetchTransactionsMetrics = async (
   token: string,
   resourceGroup: string,
   storageAccount: string
@@ -59,47 +58,20 @@ const fetchTransactionsMetrics = async (
   return res.json();
 };
 
+interface TransactionProps {
+  data: TransactionMetricDataPoint[];
+  loading: boolean;
+  error: string | null;
+}
+
+
+
 // Main Component
-const TransactionsComponent: React.FC<TransactionsProps> = ({
-  resourceGroup = 'ratify-group',
-  storageAccount = 'ratifyhackathon',
-  autoRefresh = true,
-  refreshInterval = 60000,
+const TransactionsComponent: React.FC<TransactionProps> = ({
+  data, error, loading
 }) => {
-  const [data, setData] = useState<MetricDataPoint[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const { user } = useConnector();
 
-  const fetchData = useCallback(async () => {
-    const idToken = await user?.getIdToken() || "";
 
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await fetchTransactionsMetrics(idToken, resourceGroup, storageAccount);
-      const metrics = response.metrics?.[0];
-      const timeseries = metrics?.timeseries?.[0];
-      const points: MetricDataPoint[] = timeseries?.data || [];
-      setData(points);
-      setLastUpdated(new Date());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch data');
-    } finally {
-      setLoading(false);
-    }
-  }, [user, resourceGroup, storageAccount]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  useEffect(() => {
-    if (!autoRefresh) return;
-    const interval = setInterval(fetchData, refreshInterval);
-    return () => clearInterval(interval);
-  }, [fetchData, autoRefresh, refreshInterval]);
 
   // Compute stats
   const stats = data.length
@@ -154,12 +126,7 @@ const TransactionsComponent: React.FC<TransactionsProps> = ({
         <div className="text-4xl mb-2 text-red-500">⚠️</div>
         <div className="text-lg font-semibold text-red-600 mb-2">Error</div>
         <div className="text-gray-700 text-center">{error}</div>
-        <button
-          onClick={fetchData}
-          className="mt-6 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-        >
-          Retry
-        </button>
+
       </div>
     );
   }
@@ -181,14 +148,6 @@ const TransactionsComponent: React.FC<TransactionsProps> = ({
           {loading && (
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
           )}
-          <button
-            onClick={fetchData}
-            className="p-1 text-gray-500 hover:text-blue-600 transition"
-            title="Refresh"
-          >
-            🔄
-          </button>
-          {lastUpdated && <span className="text-xs text-gray-400">{lastUpdated.toLocaleTimeString()}</span>}
         </div>
       </div>
 

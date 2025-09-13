@@ -5,57 +5,14 @@ import { useCallback, useEffect, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from "recharts";
 import { useConnector } from "@/context/ConnectorContext";
 
-const BurstCredits = () => {
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const { user } = useConnector();
+interface BurstCreditsProps {
+  data: any[];
+  loading: boolean;
+  error: string | null;
+}
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const metrics = ["CPU Credits Remaining", "CPU Credits Consumed"];
-      const results: any = {};
 
-      const token = user ? await user.getIdToken() : '';
-      for (const metric of metrics) {
-        const res = await fetch("http://127.0.0.1:8000/api/azure/vm-metrics", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            resource_group: "ratify-group",
-            vm_name: "ratify-vm",
-            metric_name: metric,
-          }),
-        });
-        if (!res.ok) throw new Error(`Failed to fetch ${metric}`);
-        const json = await res.json();
-        results[metric] = json.metrics[0].timeseries[0].data
-          .filter((d: any) => d.average !== undefined)
-          .map((d: any) => ({
-            time: new Date(d.time_stamp).toLocaleTimeString(),
-            value: d.average,
-          }));
-      }
-
-      const merged = results["CPU Credits Remaining"].map((item: any, idx: number) => ({
-        time: item.time,
-        remaining: item.value,
-        consumed: results["CPU Credits Consumed"][idx]?.value,
-      }));
-
-      setData(merged);
-    } catch (err: any) {
-      setError(err.message || "Failed to fetch data");
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+const BurstCredits = ({ data, error, loading }: BurstCreditsProps) => {
 
 
   if (loading) {
@@ -77,12 +34,6 @@ const BurstCredits = () => {
         <div className="text-4xl mb-2 text-red-500">⚠️</div>
         <div className="text-lg font-semibold text-red-600 mb-2">Error</div>
         <div className="text-gray-700 text-center">{error}</div>
-        <button
-          onClick={fetchData}
-          className="mt-6 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-        >
-          Retry
-        </button>
       </div>
     );
   }

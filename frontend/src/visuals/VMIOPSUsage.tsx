@@ -5,56 +5,15 @@ import { useCallback, useEffect, useState } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 import { useConnector } from "@/context/ConnectorContext";
 
-const IOPSUsage = () => {
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const { user } = useConnector();
+interface IOPSUsageProps {
+  data: any[];
+  loading: boolean;
+  error: string | null;
+}
 
-  const fetchData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const metrics = ["VM Cached IOPS Consumed Percentage", "VM Uncached IOPS Consumed Percentage"];
-      const results: any = {};
 
-      const token = user ? await user.getIdToken() : '';
-      for (const metric of metrics) {
-        const res = await fetch("http://127.0.0.1:8000/api/azure/vm-metrics", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            resource_group: "ratify-group",
-            vm_name: "ratify-vm",
-            metric_name: metric,
-          }),
-        });
-        const json = await res.json();
-        results[metric] = json.metrics[0].timeseries[0].data
-          .filter((d: any) => d.average !== undefined)
-          .map((d: any) => ({
-            time: new Date(d.time_stamp).toLocaleTimeString(),
-            value: d.average,
-          }));
-      }
+const IOPSUsage = ({ data, loading, error }: IOPSUsageProps) => {
 
-      const merged = results["VM Cached IOPS Consumed Percentage"].map((item: any, idx: number) => ({
-        time: item.time,
-        cached: item.value,
-        uncached: results["VM Uncached IOPS Consumed Percentage"][idx]?.value,
-      }));
-
-      setData(merged);
-    } catch (err: any) {
-      setError("Failed to fetch IOPS usage data.");
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
 
 
   if (loading) {
@@ -76,12 +35,7 @@ const IOPSUsage = () => {
         <div className="text-4xl mb-2 text-red-500">⚠️</div>
         <div className="text-lg font-semibold text-red-600 mb-2">Error</div>
         <div className="text-gray-700 text-center">{error}</div>
-        <button
-          onClick={fetchData}
-          className="mt-6 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-        >
-          Retry
-        </button>
+
       </div>
     );
   }

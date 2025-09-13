@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useConnector } from "@/context/ConnectorContext";
 
 // Types
-interface MetricDataPoint {
+export interface MetricDataPoint {
   time_stamp: string;
   average?: number; // allow optional
 }
@@ -43,7 +43,7 @@ const getGaugeColor = (value: number, threshold: number = 99.9): string => {
 
 
 // API fetch
-const fetchAvailabilityMetrics = async (
+export const fetchAvailabilityMetrics = async (
   token: string | null,
   resourceGroup: string,
   storageAccount: string
@@ -117,70 +117,22 @@ const GaugeChart: React.FC<{ value: number; threshold: number }> = ({
   );
 };
 
-// Main Component
-export const AvailabilityComponent: React.FC<AvailabilityProps> = ({
-  resourceGroup = "ratify-group",
-  storageAccount = "ratifyhackathon",
-  autoRefresh = true,
-  refreshInterval = 60000,
+interface AvailabilityProps {
+  data: MetricDataPoint[];
+  loading: boolean;
+  error: string | null;
+  lastUpdated?: Date | null;
+}
+
+const AvailabilityComponent: React.FC<AvailabilityProps> = ({
+  data,
+  loading,
+  error,
+  lastUpdated,
 }) => {
-  const [data, setData] = useState<MetricDataPoint[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const { user } = useConnector()
+  const threshold = 99.9;
 
-  const threshold = 99.9; // SLA
-
-  const fetchData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const token = user ? await user.getIdToken() : '';
-      const response = await fetchAvailabilityMetrics(
-        token,
-        resourceGroup,
-        storageAccount
-      );
-
-      if (response.metrics && response.metrics.length > 0) {
-        const timeseries = response.metrics[0].timeseries;
-        if (timeseries && timeseries.length > 0) {
-          // Only include points with an 'average' value!
-          const filteredData = (timeseries[0].data || []).filter((d: MetricDataPoint) =>
-            typeof d.average === "number"
-          );
-          setData(filteredData);
-          setLastUpdated(new Date());
-        } else {
-          setData([]);
-        }
-      } else {
-        setData([]);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch data");
-      setData([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [resourceGroup, storageAccount, user]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  useEffect(() => {
-    if (autoRefresh) {
-      const interval = setInterval(fetchData, refreshInterval);
-      return () => clearInterval(interval);
-    }
-  }, [autoRefresh, fetchData, refreshInterval]);
-
-  // Only use data points with an 'average'
   const validData = data;
-
   const currentValue = validData.length > 0 ? validData[validData.length - 1].average! : 0;
   const previousValue = validData.length > 1 ? validData[validData.length - 2].average! : 0;
   const change = currentValue - previousValue;
@@ -199,15 +151,14 @@ export const AvailabilityComponent: React.FC<AvailabilityProps> = ({
       }
       : { min: 0, max: 0, avg: 0, uptime: 0 };
 
-  const statusColor = getStatusColor(currentValue, threshold);
   const slaStatus = currentValue >= threshold;
 
   if (loading) {
     return (
       <div className="bg-white rounded-2xl shadow-md border border-blue-200 p-6 flex items-center justify-center h-full w-full">
-        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500">.........</div>
+        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500"></div>
       </div>
-    )
+    );
   }
 
   // Conditional rendering for error
@@ -221,12 +172,6 @@ export const AvailabilityComponent: React.FC<AvailabilityProps> = ({
         <div className="text-4xl mb-2 text-red-500">⚠️</div>
         <div className="text-lg font-semibold text-red-600 mb-2">Error</div>
         <div className="text-gray-700 text-center">{error}</div>
-        <button
-          onClick={fetchData}
-          className="mt-6 px-4 py-2 bg-cyan-500 text-white rounded hover:bg-cyan-600 transition"
-        >
-          Retry
-        </button>
       </div>
     );
   }
@@ -251,13 +196,7 @@ export const AvailabilityComponent: React.FC<AvailabilityProps> = ({
           {loading && (
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-cyan-500"></div>
           )}
-          <button
-            onClick={fetchData}
-            className="p-1 text-gray-500 hover:text-cyan-600 transition-colors"
-            title="Refresh"
-          >
-            🔄
-          </button>
+
           {lastUpdated && (
             <span className="text-xs text-gray-400">
               {lastUpdated.toLocaleTimeString()}
@@ -269,7 +208,7 @@ export const AvailabilityComponent: React.FC<AvailabilityProps> = ({
       {/* Current Value */}
       <div className="mb-4">
         <div className="flex items-baseline space-x-2">
-          <span className={`text-2xl font-bold ${statusColor}`}>
+          <span className={`text-2xl font-bold ${getStatusColor(currentValue, threshold)}`}>
             {formatPercentage(currentValue)}
           </span>
           {validData.length > 1 && (

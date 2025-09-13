@@ -54,6 +54,13 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
+@app.on_event("startup")
+async def startup_event():
+    try:
+        pong = await redis.ping()
+        print("✅ Redis connected:", pong)
+    except Exception as e:
+        print("⚠️ Redis connection failed:", e)
 
 @app.get("/ping")
 @limiter.limit("10/minute")   # 10 requests per minute per IP
@@ -83,11 +90,14 @@ class BillingRequest(BaseModel):
 
     # ---------- Redis Helper Functions ----------
 async def save_connector_to_redis(user_id: str, provider: str, connector: dict):
+    if not redis:
+        print("⚠️ Redis not connected, skipping save")
+        return
     key = f"user:{user_id}:connectors"
-    # Encrypt sensitive values before saving
     safe_connector = {k: encrypt_value(v) if "secret" in k or "key" in k else v
                       for k, v in connector.items()}
     await redis.hset(key, provider, json.dumps(safe_connector))
+
 
 
 async def get_connector_from_redis(user_id: str, provider: str):

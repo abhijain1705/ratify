@@ -15,7 +15,7 @@ import {
 import { useConnector } from "@/context/ConnectorContext";
 
 // Types
-interface MetricDataPoint {
+export interface ServerLatencyMetricDataPoint {
   time_stamp: string;
   average?: number; // average can be missing
 }
@@ -49,7 +49,7 @@ const getStatusColor = (value: number, threshold: number = 100): string => {
   return "text-red-600";
 };
 
-const fetchSuccessServerLatencyMetrics = async (
+export const fetchSuccessServerLatencyMetrics = async (
   token: string,
   resourceGroup: string,
   storageAccount: string
@@ -75,67 +75,21 @@ const fetchSuccessServerLatencyMetrics = async (
   }
 };
 
+interface ServerLatencyProps {
+  data: ServerLatencyMetricDataPoint[];
+  loading: boolean;
+  error: string | null;
+}
+
+
 // Main Component
 export const SuccessServerLatencyComponent: React.FC<
-  SuccessServerLatencyProps
+  ServerLatencyProps
 > = ({
-  resourceGroup = "ratify-group",
-  storageAccount = "ratifyhackathon",
-  autoRefresh = true,
-  refreshInterval = 60000,
+  data, error, loading
 }) => {
-    const [data, setData] = useState<MetricDataPoint[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-    const { user } = useConnector();
-
     const threshold = 100; // 100ms
 
-    const fetchData = useCallback(async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const token = user ? await user.getIdToken() : '';
-        const response = await fetchSuccessServerLatencyMetrics(
-          token,
-          resourceGroup,
-          storageAccount
-        );
-
-        if (response.metrics && response.metrics.length > 0) {
-          const timeseries = response.metrics[0].timeseries;
-          if (timeseries && timeseries.length > 0) {
-            // Only include points with an 'average' value
-            const filteredData = (timeseries[0].data || []).filter((d: MetricDataPoint) =>
-              typeof d.average === "number"
-            );
-            setData(filteredData);
-            setLastUpdated(new Date());
-          } else {
-            setData([]);
-          }
-        } else {
-          setData([]);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to fetch data");
-        setData([]);
-      } finally {
-        setLoading(false);
-      }
-    }, [resourceGroup, storageAccount, user]);
-
-    useEffect(() => {
-      fetchData();
-    }, [fetchData, resourceGroup, storageAccount]);
-
-    useEffect(() => {
-      if (autoRefresh) {
-        const interval = setInterval(fetchData, refreshInterval);
-        return () => clearInterval(interval);
-      }
-    }, [autoRefresh, fetchData, refreshInterval]);
 
     // Only use data points with an 'average'
     const validData = data;
@@ -205,12 +159,7 @@ export const SuccessServerLatencyComponent: React.FC<
           <div className="text-4xl mb-2 text-red-500">⚠️</div>
           <div className="text-lg font-semibold text-red-600 mb-2">Error</div>
           <div className="text-gray-700 text-center">{error}</div>
-          <button
-            onClick={fetchData}
-            className="mt-6 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-          >
-            Retry
-          </button>
+
         </div>
       );
     }
@@ -234,18 +183,6 @@ export const SuccessServerLatencyComponent: React.FC<
           <div className="flex items-center space-x-2">
             {loading && (
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-            )}
-            <button
-              onClick={fetchData}
-              className="p-1 text-gray-500 hover:text-blue-600 transition-colors"
-              title="Refresh"
-            >
-              🔄
-            </button>
-            {lastUpdated && (
-              <span className="text-xs text-gray-400">
-                {lastUpdated.toLocaleTimeString()}
-              </span>
             )}
           </div>
         </div>

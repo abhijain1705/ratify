@@ -14,79 +14,21 @@ import {
 } from "recharts";
 import { useConnector } from "@/context/ConnectorContext";
 
-interface MetricPoint {
+export interface DiskThroughputMetricPoint {
   time: string;
   read: number;
   write: number;
 }
 
-const DiskThroughput = () => {
-  const [data, setData] = useState<MetricPoint[]>([]);
-  const { user } = useConnector();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+interface DiskThroughputProps {
+  data: DiskThroughputMetricPoint[];
+  loading: boolean;
+  error: string | null;
+}
 
-  const fetchData = useCallback(async () => {
-    if (!user) return;
 
-    setLoading(true);
-    setError(null);
 
-    try {
-      const token = await user.getIdToken();
-      const metrics = ["OS Disk Read Bytes/sec", "OS Disk Write Bytes/sec"];
-      const results: Record<string, { time: string; value: number }[]> = {};
-
-      for (const metric of metrics) {
-        const res = await fetch("http://127.0.0.1:8000/api/azure/vm-metrics", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            resource_group: "ratify-group",
-            vm_name: "ratify-vm",
-            metric_name: metric,
-          }),
-        });
-
-        const json = await res.json();
-
-        results[metric] = json.metrics[0].timeseries[0].data
-          .filter((d: any) => d.average !== undefined)
-          .map((d: any) => ({
-            time: new Date(d.time_stamp).toLocaleTimeString(),
-            value: d.average,
-          }));
-      }
-
-      // Merge by timestamp
-      const allTimes = Array.from(
-        new Set([
-          ...results[metrics[0]].map(d => d.time),
-          ...results[metrics[1]].map(d => d.time),
-        ])
-      ).sort();
-
-      const mergedData: MetricPoint[] = allTimes.map(time => ({
-        time,
-        read: results[metrics[0]].find(d => d.time === time)?.value ?? 0,
-        write: results[metrics[1]].find(d => d.time === time)?.value ?? 0,
-      }));
-
-      setData(mergedData);
-    } catch (err: any) {
-      setError(err.message || "Failed to fetch data");
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
+const DiskThroughput = ({ data, error, loading }: DiskThroughputProps) => {
 
   if (loading) {
     return (
@@ -107,12 +49,7 @@ const DiskThroughput = () => {
         <div className="text-4xl mb-2 text-red-500">⚠️</div>
         <div className="text-lg font-semibold text-red-600 mb-2">Error</div>
         <div className="text-gray-700 text-center">{error}</div>
-        <button
-          onClick={fetchData}
-          className="mt-6 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-        >
-          Retry
-        </button>
+
       </div>
     );
   }

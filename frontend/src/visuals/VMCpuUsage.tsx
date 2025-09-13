@@ -14,7 +14,7 @@ import {
 import { useConnector } from "@/context/ConnectorContext";
 
 // Types
-interface MetricDataPoint {
+export interface CPUUsageMetricDataPoint {
   time_stamp: string;
   average: number;
 }
@@ -33,7 +33,7 @@ const formatTimestamp = (timestamp: string): string => {
   return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false });
 };
 
-const fetchCPUMetrics = async (token: string, resourceGroup: string, vmName: string) => {
+export const fetchCPUMetrics = async (token: string, resourceGroup: string, vmName: string) => {
   const res = await fetch("http://127.0.0.1:8000/api/azure/vm-metrics", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -43,55 +43,18 @@ const fetchCPUMetrics = async (token: string, resourceGroup: string, vmName: str
   return res.json();
 };
 
+interface CPUUsageProps {
+  data: CPUUsageMetricDataPoint[];
+  loading: boolean;
+  error: string | null;
+}
+
+
 // Main Component
 const CPUUsage: React.FC<CPUUsageProps> = ({
-  resourceGroup = "ratify-group",
-  vmName = "ratify-vm",
-  autoRefresh = true,
-  refreshInterval = 60000,
+  data, error, loading
 }) => {
-  const [data, setData] = useState<MetricDataPoint[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const { user } = useConnector();
-
-  const fetchData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const token = user ? await user.getIdToken() : "";
-      const response = await fetchCPUMetrics(token, resourceGroup, vmName);
-      const timeseries = response?.metrics?.[0]?.timeseries?.[0]?.data || [];
-
-      const filteredData = timeseries
-        .filter((d: any) => d.average !== undefined)
-        .map((d: any) => ({
-          time_stamp: d.time_stamp,
-          average: Number(d.average) * 100, // Convert to %
-        }));
-
-      setData(filteredData);
-      setLastUpdated(new Date());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch data");
-    } finally {
-      setLoading(false);
-    }
-  }, [resourceGroup, vmName, user]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  useEffect(() => {
-    if (autoRefresh) {
-      const interval = setInterval(fetchData, refreshInterval);
-      return () => clearInterval(interval);
-    }
-  }, [autoRefresh, fetchData, refreshInterval]);
 
   // Stats
   const stats =
@@ -143,12 +106,7 @@ const CPUUsage: React.FC<CPUUsageProps> = ({
         <div className="text-4xl mb-2 text-red-500">⚠️</div>
         <div className="text-lg font-semibold text-red-600 mb-2">Error</div>
         <div className="text-gray-700 text-center">{error}</div>
-        <button
-          onClick={fetchData}
-          className="mt-6 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-        >
-          Retry
-        </button>
+
       </div>
     );
   }
@@ -170,17 +128,7 @@ const CPUUsage: React.FC<CPUUsageProps> = ({
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          {loading && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>}
-          <button
-            onClick={fetchData}
-            className="p-1 text-gray-500 hover:text-blue-600 transition-colors"
-            title="Refresh"
-          >
-            🔄
-          </button>
-          {lastUpdated && (
-            <span className="text-xs text-gray-400">{lastUpdated.toLocaleTimeString()}</span>
-          )}
+
         </div>
       </div>
 
