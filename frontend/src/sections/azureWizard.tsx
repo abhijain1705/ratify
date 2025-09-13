@@ -1,4 +1,10 @@
-import React, { useState } from "react";
+"use client";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import { auth } from "@/firebase";
+import { useAuthState } from "react-firebase-hooks/auth";
+import toast from "react-hot-toast";
+import { useConnector } from "@/context/ConnectorContext";
 
 interface AzureWizardModalProps {
   isOpen: boolean;
@@ -8,12 +14,21 @@ interface AzureWizardModalProps {
 const AzureSetupWizard = ({ isOpen, onClose }: AzureWizardModalProps) => {
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
-    azureEmail: "",
     subscriptionId: "",
     tenantId: "",
     clientId: "",
     clientSecret: "",
   });
+  const [user, loading] = useAuthState(auth);
+  const [idToken, setIdToken] = useState<string | null>(null);
+  const [loader, setloader] = useState(false)
+  const { setConnector } = useConnector()
+
+  useEffect(() => {
+    if (user) {
+      user.getIdToken().then((token) => setIdToken(token));
+    }
+  }, [user]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -25,6 +40,39 @@ const AzureSetupWizard = ({ isOpen, onClose }: AzureWizardModalProps) => {
   if (!isOpen) return null;
 
   const progressWidth = `${(step / 5) * 100}%`;
+
+  const handleFinish = async () => {
+    if (!idToken) {
+      toast.error("You must be logged in to connect Azure");
+      return;
+    }
+
+    try {
+      const payload = {
+        tenant_id: formData.tenantId,
+        client_id: formData.clientId,
+        client_secret: formData.clientSecret,
+        subscription_id: formData.subscriptionId,
+      };
+
+      setloader(true)
+      const res = await axios.post(
+        "http://127.0.0.1:8000/api/connectors/azure",
+        payload,
+        { headers: { Authorization: `Bearer ${idToken}` } }
+      );
+
+      setConnector("azure", true)
+      console.log("Azure Connector Added:", res.data);
+      toast.success("Azure Connected Successfully!");
+    } catch (err: any) {
+      console.error("Error adding Azure connector:", err.response?.data || err.message);
+      toast.error("Failed to connect Azure: " + (err.response?.data?.detail || err.message));
+    } finally {
+      onClose();
+      setloader(false)
+    }
+  };
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
@@ -53,39 +101,43 @@ const AzureSetupWizard = ({ isOpen, onClose }: AzureWizardModalProps) => {
         {/* Step 1 */}
         {step === 1 && (
           <>
-            <p className="mb-2 font-medium">🔑 Sign in with your Azure Email</p>
-            <p className="text-sm text-gray-600 mb-3">
-              Go to{" "}
-              <a
-                href="https://portal.azure.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-indigo-600 underline"
-              >
-                Azure Portal
-              </a>{" "}
-              and log in with your <strong>Microsoft account email</strong>.
+            <p className="mb-2 font-medium">🔑 Setup Azure for Secure Access</p>
+            <p className="text-sm text-gray-600 mb-3 leading-relaxed">
+              Our platform connects to your Azure subscription securely using{" "}
+              <strong>Azure AD App Registration</strong>. This avoids giving us
+              your root credentials — you stay in control 🔐.
             </p>
-            <input
-              type="email"
-              name="azureEmail"
-              placeholder="Enter Azure account email"
-              value={formData.azureEmail}
-              onChange={handleChange}
-              className="w-full border rounded-md p-2"
-            />
+            <p className="text-sm text-gray-600 mb-3 leading-relaxed">
+              Steps you’ll follow:
+              <ul className="list-disc ml-5 mt-1">
+                <li>Login to the{" "}
+                  <a
+                    href="https://portal.azure.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-600 underline"
+                  >
+                    Azure Portal
+                  </a>
+                </li>
+                <li>Register a new application in{" "}
+                  <strong>Azure Active Directory → App registrations</strong>
+                </li>
+                <li>Collect the <strong>Tenant ID</strong> & <strong>Client ID</strong></li>
+                <li>Create a <strong>Client Secret</strong> (password for the app)</li>
+                <li>Copy your <strong>Subscription ID</strong> from{" "}
+                  <strong>Subscriptions</strong>
+                </li>
+              </ul>
+              Don’t worry, the next steps guide you one by one. 🚀
+            </p>
           </>
         )}
 
         {/* Step 2 */}
         {step === 2 && (
           <>
-            <p className="mb-2 font-medium">🆔 Find your Subscription ID</p>
-            <p className="text-sm text-gray-600 mb-3">
-              In Azure Portal → Navigate to{" "}
-              <strong>Subscriptions</strong>. Select your subscription and copy
-              the <strong>Subscription ID</strong>.
-            </p>
+            <p className="mb-2 font-medium">🆔 Enter Subscription ID</p>
             <input
               type="text"
               name="subscriptionId"
@@ -100,19 +152,7 @@ const AzureSetupWizard = ({ isOpen, onClose }: AzureWizardModalProps) => {
         {/* Step 3 */}
         {step === 3 && (
           <>
-            <p className="mb-2 font-medium">👤 Register an App in Azure AD</p>
-            <p className="text-sm text-gray-600 mb-3 leading-relaxed">
-              Go to <strong>Azure Active Directory</strong> →{" "}
-              <strong>App registrations</strong> → <strong>New registration</strong>.
-              <br />
-              - Choose a <strong>name</strong> (e.g., <code>cloud-connector</code>) <br />
-              - Redirect URI: leave blank or set as needed <br />
-              - After creation, note down:
-              <ul className="list-disc ml-5">
-                <li>✅ <strong>Tenant ID</strong></li>
-                <li>✅ <strong>Client ID</strong></li>
-              </ul>
-            </p>
+            <p className="mb-2 font-medium">👤 Enter Tenant & Client ID</p>
             <input
               type="text"
               name="tenantId"
@@ -135,13 +175,7 @@ const AzureSetupWizard = ({ isOpen, onClose }: AzureWizardModalProps) => {
         {/* Step 4 */}
         {step === 4 && (
           <>
-            <p className="mb-2 font-medium">🔐 Create a Client Secret</p>
-            <p className="text-sm text-gray-600 mb-3">
-              In your App Registration → <strong>Certificates & secrets</strong>{" "}
-              → <strong>New client secret</strong>.
-              <br />
-              Copy the generated <strong>secret value</strong> (⚠️ visible only once).
-            </p>
+            <p className="mb-2 font-medium">🔐 Enter Client Secret</p>
             <input
               type="password"
               name="clientSecret"
@@ -158,11 +192,12 @@ const AzureSetupWizard = ({ isOpen, onClose }: AzureWizardModalProps) => {
           <>
             <p className="mb-2 font-medium">⚙ Assign Permissions</p>
             <p className="text-sm text-gray-600 mb-3 leading-relaxed">
-              Go to your App Registration → <strong>API Permissions</strong> →
-              Add:
+              Make sure your app has:
               <ul className="list-disc ml-5">
-                <li>✅ <code>Azure Service Management (user_impersonation)</code></li>
-                <li>✅ Or specific resource-level permissions (VM, Storage, etc.)</li>
+                <li>
+                  ✅ <code>Azure Service Management (user_impersonation)</code>
+                </li>
+                <li>✅ Any resource-level permissions you want us to monitor (VM, Storage, etc.)</li>
               </ul>
               Then click <strong>Grant admin consent</strong>.
             </p>
@@ -188,14 +223,11 @@ const AzureSetupWizard = ({ isOpen, onClose }: AzureWizardModalProps) => {
               Next
             </button>
           ) : (
-            <button
-              onClick={() => {
-                console.log("Azure Submitted:", formData);
-                onClose();
-              }}
+            <button disabled={loader}
+              onClick={handleFinish}
               className="px-4 py-2 bg-green-600 text-white rounded-md"
             >
-              Finish
+              {loader ? "Connecting..." : "Finish & Connect"}
             </button>
           )}
         </div>

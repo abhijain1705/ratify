@@ -31,9 +31,11 @@ import MemoryUsage from './VMMemoryUsage';
 import NetworkTraffic from './VMNetworkTraffic';
 import CloudMenu from "@/sections/cloudMenu";
 import { useConnector } from '@/context/ConnectorContext';
+import AwsCPUUsage from './awsCpuUsage';
+import AwsControls from './AwsControls';
 
 // Simple Modal Component
-function Modal({
+export function Modal({
     isOpen,
     onClose,
     children,
@@ -69,6 +71,7 @@ const DashboardContent = () => {
     };
 
     const [widgets, setWidgets] = useState<Visual[]>([
+        { id: "AWS CPU Usage", label: "AWS CPU Usage", provider: "aws", component: <AwsCPUUsage /> },
         { id: "availability", label: "Availability", provider: "azure", component: <Availability /> },
         { id: "ingress", label: "Ingress", provider: "azure", component: <Ingress /> },
         { id: "egress", label: "Egress", provider: "azure", component: <Egress /> },
@@ -148,6 +151,7 @@ const DashboardContent = () => {
                 <h1 className="text-2xl font-bold">🌐 Unified Cloud Dashboard</h1>
                 <div className="flex items-center gap-4">
                     <CloudMenu />
+                    <AwsControls />
                     <VisualsControlPopover
                         visuals={widgets}
                         groups={groups}
@@ -164,26 +168,6 @@ const DashboardContent = () => {
             </div>
 
             <p className="text-gray-600">Welcome back, {user.displayName} 👋</p>
-
-            <DndProvider backend={HTML5Backend}>
-                <section className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 mt-10">
-                    {widgets.filter((widget) => visible[widget.id]).map((widget, index) => (
-                        <div
-                            key={widget.id}
-                            style={{ cursor: "grab" }}
-                        >
-                            <DraggableCard
-                                id={widget.id}
-                                index={index}
-                                moveCard={moveCard}
-                            >
-                                {widget.component}
-                            </DraggableCard>
-                        </div>
-                    ))}
-                </section>
-            </DndProvider>
-
 
             {/* Connectors Section */}
             <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -219,6 +203,28 @@ const DashboardContent = () => {
                     </div>
                 )}
             </section>
+
+            {<DndProvider backend={HTML5Backend}>
+                <section className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 mt-10">
+                    {widgets
+                        .filter((widget) => widget.provider === "aws" && !connectors.aws ? false : true)
+                        .filter((widget) => widget.provider === "azure" && !connectors.azure ? false : true)
+                        .filter((widget) => visible[widget.id]).map((widget, index) => (
+                            <div
+                                key={widget.id}
+                                style={{ cursor: "grab" }}
+                            >
+                                <DraggableCard
+                                    id={widget.id}
+                                    index={index}
+                                    moveCard={moveCard}
+                                >
+                                    {widget.component}
+                                </DraggableCard>
+                            </div>
+                        ))}
+                </section>
+            </DndProvider>}
 
 
             {/* Popup Modals */}

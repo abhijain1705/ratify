@@ -3,6 +3,7 @@ import { auth } from "@/firebase"; // Adjust path
 import axios from "axios";
 import { useAuthState } from "react-firebase-hooks/auth";
 import toast from "react-hot-toast";
+import { useConnector } from "@/context/ConnectorContext";
 
 interface AwsWizardModalProps {
   isOpen: boolean;
@@ -18,6 +19,8 @@ const AwsSetupWizard = ({ isOpen, onClose }: AwsWizardModalProps) => {
   });
   const [user, loading] = useAuthState(auth);
   const [idToken, setIdToken] = useState<string | null>(null);
+  const { setConnector } = useConnector()
+  const [loader, setloader] = useState(false)
 
   // Get ID token for API auth
   useEffect(() => {
@@ -50,16 +53,21 @@ const AwsSetupWizard = ({ isOpen, onClose }: AwsWizardModalProps) => {
         region: formData.region,
       };
 
+      setloader(true)
       const res = await axios.post("http://127.0.0.1:8000/api/connectors/aws", payload, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
 
+      setConnector("aws", true)
       console.log("AWS Connector Added:", res.data);
       toast.success("AWS Connected Successfully!");
-      onClose();
+
     } catch (err: any) {
       console.error("Error adding AWS connector:", err.response?.data || err.message);
       toast.error("Failed to connect AWS: " + (err.response?.data?.detail || err.message));
+    } finally {
+      onClose();
+      setloader(false)
     }
   };
 
@@ -146,7 +154,7 @@ const AwsSetupWizard = ({ isOpen, onClose }: AwsWizardModalProps) => {
             </select>
             <div className="flex justify-between mt-4">
               <button onClick={prevStep} className="px-4 py-2 bg-gray-200 rounded-md">Back</button>
-              <button onClick={handleFinish} className="px-4 py-2 bg-green-600 text-white rounded-md">Finish & Connect</button>
+              <button disabled={loader} onClick={handleFinish} className="px-4 py-2 bg-green-600 text-white rounded-md">{loader ? "Connecting..." : "Finish & Connect"}</button>
             </div>
           </>
         )}

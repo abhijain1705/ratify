@@ -27,6 +27,11 @@ from fastapi.middleware.cors import CORSMiddleware
 limiter = Limiter(key_func=get_remote_address)
 load_dotenv()
 
+HF_API_URL = "https://api-inference.huggingface.co/models/facebook/prophet"
+HF_API_TOKEN = os.getenv("HF_API_TOKEN")
+
+headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
+
 app = FastAPI()
 
 # Allow CORS for localhost:3000
@@ -96,10 +101,94 @@ async def get_connector_from_redis(user_id: str, provider: str):
             for k, v in connector.items()}
 
 
-async def delete_connector_from_redis(user_id: str, provider: str):
-    key = f"user:{user_id}:connectors"
-    await redis.hdel(key, provider)
+@app.post("/api/predict-scaling")
+def predict_scaling(data: dict = Body(...)):
+    """
+    Accepts AWS EC2 metrics in the following format:
+    {
+      "metrics": [
+        {"timestamp": "...", "cpu": ...}
+      ]
+    }
+    """
 
+    # Prepare prompt for Falcon LLM
+    prompt = f"""
+    You are a predictive scaling assistant.
+    Given usage data as a list of records with timestamp and CPU utilization (percent):
+    {data['metrics']}
+    Forecast the expected CPU utilization for the next 30 minutes, in 5-minute intervals.
+    Output a JSON array with predicted records like:
+    [
+      {{"timestamp": "...", "cpu": ...}},
+      ...
+    ]
+    Only predict reasonable values, with timestamps spaced 5min apart from last input.
+    """
+
+    response = requests.post(
+        "https://api-inference.huggingface.co/models/tiiuae/falcon-7b-instruct", 
+        headers=headers, 
+        json={"inputs": prompt}
+    )
+
+    if response.status_code != 200:
+        return {"error": response.text}
+
+    # Try to extract JSON from response
+    try:
+        import json
+        out = response.json()
+        # LLM might return text, not JSON
+        if isinstance(out, dict) and "generated_text" in out:
+            generated = out["generated_text"]
+            # Extract JSON part from string (best-effort)
+            start = generated.find("[")
+            end = generated.rfind("]") + 1
+            pred_json = generated[start:end]
+            predictions = json.loads(pred_json)
+            return {"prediction": predictions}
+        return {"prediction": out}
+    except Exception as e:
+        return {"error": "Could not parse model output", "details": str(e)}
+
+
+@app.post("/api/connectors/delete/{provider}")
+async def delete_connector(provider: str, user: User = Depends(verify_firebase_token)):
+    if provider not in ["aws", "azure"]:
+        raise HTTPException(status_code=400, detail="Invalid provider")
+    key = f"user:{user.uid}:connectors"
+    await redis.hdel(key, provider)
+    return {"msg": f"{provider} connector deleted"}
+
+
+@app.post("/aws/instances")
+async def list_ec2_instances(user: User = Depends(verify_firebase_token)):
+    try:
+        connector = await get_user_connector(user)
+        ec2 = boto3.client(
+            "ec2",
+            aws_access_key_id=connector["access_key"],
+            aws_secret_access_key=connector["secret_key"],
+            region_name=connector["region"],
+        )
+
+        response = ec2.describe_instances()
+        instances = []
+        for reservation in response["Reservations"]:
+            for instance in reservation["Instances"]:
+                instances.append({
+                    "InstanceId": instance["InstanceId"],
+                    "State": instance["State"]["Name"],
+                    "Name": next(
+                        (tag["Value"] for tag in instance.get("Tags", []) if tag["Key"] == "Name"),
+                        "Unnamed"
+                    )
+                })
+        return {"instances": instances}
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/api/connectors/status")
 async def connectors_status(user: User = Depends(verify_firebase_token)):
@@ -135,6 +224,7 @@ async def get_user_azure_credential(user_id):
 @app.post("/api/connectors/azure")
 async def connect_azure(connector: AzureConnector, user: User = Depends(verify_firebase_token)):
     try:
+        print("Validating Azure credentials...", user.uid)
         await save_connector_to_redis(user.uid, "azure", {
             "tenant_id": (connector.tenant_id),
             "client_id": (connector.client_id),
