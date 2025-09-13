@@ -94,6 +94,7 @@ const AwsControls = () => {
                     {/* ASG Scaling */}
                     <div className="bg-gray-50 rounded-xl p-5 shadow">
                         <h2 className="text-lg font-semibold mb-4">Auto Scaling Group</h2>
+                        <label>Auto Scaling Group</label>
                         <input
                             type="text"
                             placeholder="ASG Name"
@@ -101,10 +102,12 @@ const AwsControls = () => {
                             onChange={(e) => setAsg(e.target.value)}
                             className="w-full border p-2 rounded mb-3"
                         />
+                        <label>Desired Instance</label>
                         <input
                             type="number"
                             placeholder="Desired Capacity"
                             value={capacity}
+
                             onChange={(e) => setCapacity(Number(e.target.value))}
                             className="w-full border p-2 rounded mb-3"
                         />
